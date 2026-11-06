@@ -45,6 +45,10 @@ const full = {
     claims: ["La versión publicada es inmutable."],
     ai_disclosure:
       "Contenido sintético exclusivamente para pruebas locales del software.",
+    funding: "Sin financiación externa. Declaración de prueba.",
+    conflicts: "No existen conflictos de interés en esta prueba.",
+    ethics: "Datos sintéticos; no participan personas ni animales.",
+    data_availability: "Material de prueba: https://example.com/datos",
     license: "CC-BY-4.0",
     consent: true,
     ai_consent: false,
@@ -161,7 +165,12 @@ test("Flujo editorial, aislamiento, versiones, respuestas y seguridad", async (t
     assert.equal(pub.data.version, 1);
   });
   await t.test("borrador v2 y nota privada no se filtran en v1", async () => {
-    const upd = { ...full, title: "BORRADOR PRIVADO V2", revision: 1 };
+    const upd = {
+      ...full,
+      body: { ...full.body, funding: "FINANCIACION PRIVADA V2" },
+      title: "BORRADOR PRIVADO V2",
+      revision: 1,
+    };
     assert.equal((await call(`/api/works/${id}`, upd, ca, "PUT")).status, 200);
     assert.equal((await call(`/api/works/${id}/submit`, {}, ca)).status, 200);
     assert.equal(
@@ -179,6 +188,8 @@ test("Flujo editorial, aislamiento, versiones, respuestas y seguridad", async (t
     assert.equal(pub.data.work.editor_note, null);
     assert.ok(!JSON.stringify(pub.data).includes("BORRADOR PRIVADO"));
     assert.ok(!JSON.stringify(pub.data).includes("NOTA PRIVADA"));
+    assert.ok(!JSON.stringify(pub.data).includes("FINANCIACION PRIVADA"));
+    assert.equal(JSON.parse(pub.data.work.body).funding, full.body.funding);
   });
   let reply;
   await t.test("respuesta citable a v1 y permiso editorial", async () => {
@@ -238,13 +249,20 @@ test("Flujo editorial, aislamiento, versiones, respuestas y seguridad", async (t
     assert.equal(v1.data.edges.length, 1);
   });
   await t.test("exportaciones y metadatos públicos", async () => {
-    for (const ext of ["md", "json", "bib"]) {
+    for (const ext of ["md", "json", "bib", "ris"]) {
       const r = await fetch(`${base}/works/${id}.${ext}?v=1`);
       assert.equal(r.status, 200);
       assert.ok((await r.text()).includes(full.title));
     }
     const html = await (await fetch(`${base}/works/${id}?v=1`)).text();
     assert.ok(html.includes("citation_title"));
+    assert.ok(html.includes(full.body.funding));
+    assert.ok(html.includes(full.body.conflicts));
+    const md = await (await fetch(`${base}/works/${id}.md?v=1`)).text();
+    assert.ok(md.includes(full.body.data_availability));
+    const feed = await (await fetch(`${base}/feed.xml`)).text();
+    assert.ok(feed.includes(`<guid isPermaLink="true">`));
+    assert.ok(feed.includes(`/works/${reply}?v=1`));
     assert.ok(html.includes("https://example.com/paper"));
     assert.ok(!html.includes('href="https://examp"'));
   });

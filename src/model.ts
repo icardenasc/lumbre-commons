@@ -24,6 +24,10 @@ export interface Body {
   references: string;
   claims: string[];
   ai_disclosure: string;
+  funding?: string;
+  conflicts?: string;
+  ethics?: string;
+  data_availability?: string;
   license: string;
   target_id?: string;
   target_version?: number;
@@ -120,6 +124,10 @@ export function parseWork(input: any) {
     limitations: 6000,
     references: 10000,
     ai_disclosure: 2000,
+    funding: 3000,
+    conflicts: 3000,
+    ethics: 3000,
+    data_availability: 3000,
   })) {
     if (
       b[key] !== undefined &&
@@ -160,6 +168,10 @@ export function parseWork(input: any) {
           .filter(Boolean)
       : [],
     ai_disclosure: str(b.ai_disclosure, 2000),
+    funding: str(b.funding, 3000),
+    conflicts: str(b.conflicts, 3000),
+    ethics: str(b.ethics, 3000),
+    data_availability: str(b.data_availability, 3000),
     license: "CC-BY-4.0",
     consent: b.consent === true,
     ai_consent: b.ai_consent === true,

@@ -1,6 +1,6 @@
 # Lumbre
 
-**Una idea enciende la siguiente.** Repositorio abierto de investigación, respuestas citables y problemas colaborativos. Primera versión funcional, con infraestructura independiente en Cloudflare.
+**Lumbre — Revista científica de investigación abierta.** Publicación interdisciplinaria en español, con respuestas citables, preguntas abiertas y versiones trazables. Etapa editorial de apertura, con infraestructura independiente en Cloudflare.
 
 - Sitio: https://lumbre-commons.ia-cardenas10.workers.dev
 - Código: https://github.com/icardenasc/lumbre-commons
@@ -16,14 +16,17 @@
 - Banco de problemas, propuestas públicas de colaboración y estado declarado por su autor.
 - Grafo navegable de conexiones explícitas, búsqueda por texto, filtro por disciplina/tipo.
 - Lectura HTML generada en servidor, PDF, Markdown, JSON y BibTeX por versión.
-- Colección editorial «Cuadernos», políticas, metadatos bibliográficos, sitemap y llms.txt.
+- Identidad de revista: portada editorial, declaración de apertura, alcance, instrucciones para autores y proceso editorial.
+- Lectura con índice, modo sin distracciones, tamaño de letra, referencias y biblioteca personal local.
+- Editor por secciones, progreso, vista previa y declaraciones de financiación, conflictos, ética y datos.
+- Guía de manuscrito descargable, RSS por versión, RIS, metadatos bibliográficos, sitemap y llms.txt.
 - Adaptadores OpenAI Responses y Anthropic Messages, rúbrica validada, estados de error y consentimiento. **Desactivados hasta configurar claves y modelos. No se ejecutaron llamadas pagadas.**
 
 El contenido inicial es una agenda original identificada como tal: tres problemas abiertos y una propuesta metodológica asistida por IA. No son hallazgos empíricos ni actividad simulada de usuarios.
 
 ## Arquitectura
 
-Worker TypeScript con HTML del servidor y JavaScript progresivo, sin framework frontend. `src/worker.ts` contiene HTTP/API y controles; `src/auth.ts` autenticación; `src/model.ts` validación; `src/ai.ts` evaluaciones; `src/exports.ts` formatos; `src/views.ts` páginas. `public/` contiene JS, CSS y fuentes. D1 guarda usuarios, sesiones, trabajos, versiones, relaciones, colaboradores, evaluaciones y auditoría. R2 conserva snapshots JSON de publicaciones. El grafo se representa con tablas relacionales; no requiere otra base para esta escala.
+Worker TypeScript con HTML del servidor y JavaScript progresivo, sin framework frontend. `src/worker.ts` contiene HTTP/API y controles; `src/auth.ts` autenticación; `src/model.ts` validación; `src/ai.ts` evaluaciones; `src/exports.ts` formatos; `src/views.ts` páginas y `src/journal.ts` contenido editorial. `public/` contiene JS, CSS y fuentes. D1 guarda usuarios, sesiones, trabajos, versiones, relaciones, colaboradores, evaluaciones y auditoría. R2 conserva snapshots JSON de publicaciones. El grafo se representa con tablas relacionales; no requiere otra base para esta escala.
 
 Recursos dedicados: Worker `lumbre-commons`; D1 `lumbre-commons`; R2 `lumbre-commons-artifacts`. Ningún binding comparte datos con RuleX, LIGAL o Justi.
 
@@ -101,7 +104,7 @@ Fuentes de integración: https://developers.openai.com/api/docs/guides/structure
 `GET /api/works?q=&kind=&field=` lista hasta 100 aportes públicos.
 `GET /api/works/{id}?v=N` devuelve versión, relaciones, colaboraciones y evaluaciones correspondientes.
 `GET /api/graph` devuelve hasta 100 nodos y 500 relaciones visibles.
-`GET /works/{id}.{md,json,bib,pdf}?v=N` fija formato y versión.
+`GET /works/{id}.{md,json,bib,ris,pdf}?v=N` fija formato y versión.
 `GET /llms.txt`, `/sitemap.xml` y `/robots.txt` describen el contenido público.
 
 ## Límites de esta entrega
@@ -109,8 +112,16 @@ Fuentes de integración: https://developers.openai.com/api/docs/guides/structure
 - La revisión de IA está implementada pero no validada de extremo a extremo con claves reales. No existe todavía cola durable para tareas de horas, OCR, carga de PDF/DOCX, editor LaTeX ni ejecución de experimentos.
 - El grafo es de conexiones declaradas. No hay embeddings, búsqueda semántica, extracción automática de afirmaciones ni inferencias validadas.
 - Identidad pública declarada, sin ORCID/OAuth ni recuperación por correo. No se certifica independencia entre cuentas o titulación. Alta editorial adicional requiere una actuación administrativa explícita.
-- «Cuadernos» es una colección; no se presenta como revista indexada. DOI, ISSN, Crossref y OAI-PMH no están activados. Variables Crossref/ISSN son reservas de configuración para trabajo futuro, no integraciones implementadas.
+- La revista está en apertura, sin consejo científico confirmado ni circuito completo de asignación de pares independientes. No se presenta como revista indexada. DOI, ISSN, Crossref y OAI-PMH no están activados. Variables Crossref/ISSN son reservas de configuración para trabajo futuro, no integraciones implementadas.
 - PDF conserva texto y paginación con fuentes Unicode. Si un carácter no está soportado, devuelve error en lugar de cambiar el contenido silenciosamente. No maquetación de fórmulas LaTeX, tablas complejas ni gráficos.
 - Búsqueda/listados limitados a 100 registros, grafo máximo 500 conexiones; paginación, FTS y clustering son siguientes mejoras.
 - R2 es una copia operacional, no un programa certificado de preservación. Faltan backups externos periódicos, restauración ensayada y políticas operativas de retención/purga.
 - Antes de una convocatoria masiva, define entidad responsable/canal privado de datos, procedimiento de apelación, moderadores y modelo de sostenibilidad. Las políticas incluidas son borradores operativos, no una certificación jurídica.
+
+## Rediseño editorial · 6 de noviembre de 2026
+
+La identidad pública se organiza como revista científica de investigación abierta. El archivo conserva todas las publicaciones, mientras las preguntas tienen una sección propia. La portada utiliza una ilustración vectorial conceptual original, no una figura de resultados científicos. No se modificaron versiones históricas para cambiar su terminología.
+
+La lista de lectura se almacena únicamente en localStorage del navegador, con hasta 200 referencias, y no se sincroniza con la cuenta. La vista previa de manuscritos usa nodos de texto y no ejecuta HTML del autor. Las nuevas declaraciones son campos opcionales con máximo de 3.000 caracteres cada uno, incluidos en el hash, las versiones, la lectura y las exportaciones; la ausencia se muestra como tal en documentos antiguos.
+
+`/feed.xml` publica hasta 50 versiones recientes, con GUID por versión, y excluye trabajos retirados. Las fechas y el orden públicos se toman de la versión publicada, no de la edición privada de borradores. `/authors` contiene la guía de envío y `/manuscript-template.md` su copia descargable. `node scripts/smoke.mjs /ruta/reporte.json` comprueba las rutas públicas sin crear contenido.

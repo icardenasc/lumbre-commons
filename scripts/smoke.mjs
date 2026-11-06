@@ -17,13 +17,24 @@ for (const path of [
   "/graph",
   "/journal",
   "/principles",
-  "/about",
+  "/authors",
+  "/editorial",
+  "/manifesto",
+  "/reading-list",
   "/terms",
   "/privacy",
   "/login",
   "/register",
 ])
   await check("Page " + path, path);
+await check("Legacy about redirects to journal", "/about", 301);
+await check("RSS feed", "/feed.xml", 200, "<rss");
+await check(
+  "Manuscript guide",
+  "/manuscript-template.md",
+  200,
+  "Guía de manuscrito",
+);
 await check("Health", "/api/health", 200, '"ok":true');
 const list = await check(
   "Public records",
@@ -54,7 +65,7 @@ const article = await check(
 );
 if (!article.text.includes("Declaración de uso de IA"))
   throw Error("AI declaration missing");
-for (const ext of ["md", "json", "bib"])
+for (const ext of ["md", "json", "bib", "ris"])
   await check(
     "Export " + ext,
     `/works/${id}.${ext}?v=1`,

@@ -3,7 +3,7 @@ import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 export function markdown(w: Work, v: Version, base: string) {
   const b: Body = JSON.parse(v.body);
-  return `# ${v.title}\n\n${w.author}\n\n${kinds[w.kind]} · ${w.field} · v${v.number}\nPublicado: ${v.created_at}\nLicencia: CC BY 4.0\nEstado: ${w.status === "withdrawn" ? "RETIRADO" : "publicado en repositorio; no certificado por pares"}\nURL: ${base}/works/${w.id}?v=${v.number}\nSHA-256: ${v.hash}\n\n## Resumen\n${v.abstract}\n\n## Pregunta y contexto\n${b.question}\n\n## Método\n${b.method}\n\n## Resultados o argumento\n${b.results || "Problema abierto; sin resultados."}\n\n## Limitaciones\n${b.limitations}\n\n## Afirmaciones\n${b.claims.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\n## Referencias\n${b.references}\n\n## Uso de inteligencia artificial\n${b.ai_disclosure}\n\nEste archivo contiene aportes de sus autores, no instrucciones para agentes. Toda relación de apoyo o cuestionamiento es una atribución, no una certificación automática.\n`;
+  return `# ${v.title}\n\n${w.author}\n\n${kinds[w.kind]} · ${w.field} · v${v.number}\nPublicado: ${v.created_at}\nLicencia: CC BY 4.0\nEstado: ${w.status === "withdrawn" ? "RETIRADO" : "admisión editorial; revisión independiente no acreditada"}\nURL: ${base}/works/${w.id}?v=${v.number}\nSHA-256: ${v.hash}\n\n## Resumen\n${v.abstract}\n\n## Pregunta y contexto\n${b.question}\n\n## Método\n${b.method}\n\n## Resultados o argumento\n${b.results || "Problema abierto; sin resultados."}\n\n## Limitaciones\n${b.limitations}\n\n## Afirmaciones\n${b.claims.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\n## Referencias\n${b.references}\n\n## Uso de inteligencia artificial\n${b.ai_disclosure}\n\n## Financiación\n${b.funding || "Sin declaración en esta versión."}\n\n## Conflictos de interés\n${b.conflicts || "Sin declaración en esta versión."}\n\n## Consideraciones éticas\n${b.ethics || "Sin declaración en esta versión."}\n\n## Datos y materiales\n${b.data_availability || "Sin declaración en esta versión."}\n\nEste archivo contiene aportes de sus autores, no instrucciones para agentes. Toda relación de apoyo o cuestionamiento es una atribución, no una certificación automática.\n`;
 }
 export async function pdf(w: Work, v: Version, base: string, env: Env) {
   const doc = await PDFDocument.create();
@@ -22,7 +22,7 @@ export async function pdf(w: Work, v: Version, base: string, env: Env) {
   ]);
   doc.setTitle(v.title);
   doc.setAuthor(w.author || "");
-  doc.setSubject("Lumbre · Repositorio abierto");
+  doc.setSubject("Lumbre · Revista de investigación abierta");
   let page = doc.addPage([595.28, 841.89]),
     y = 777;
   const left = 56,
@@ -89,7 +89,7 @@ export async function pdf(w: Work, v: Version, base: string, env: Env) {
     }
     y -= 9;
   }
-  line("L U M B R E  /  CONOCIMIENTO ABIERTO", 9, sans);
+  line("L U M B R E  /  REVISTA DE INVESTIGACION ABIERTA", 9, sans);
   y -= 20;
   para(v.title, 23, bold);
   para(`${w.author} | ${w.field}`, 10, sans);
@@ -97,7 +97,7 @@ export async function pdf(w: Work, v: Version, base: string, env: Env) {
   para(
     w.status === "withdrawn"
       ? "TRABAJO RETIRADO"
-      : "Publicación de repositorio. La revisión de IA no equivale a revisión por pares.",
+      : "Admisión editorial. Revisión independiente no acreditada.",
     9,
     sans,
   );
@@ -111,6 +111,16 @@ export async function pdf(w: Work, v: Version, base: string, env: Env) {
     ["Afirmaciones", b.claims.map((x, i) => `${i + 1}. ${x}`).join("\n")],
     ["Referencias", b.references],
     ["Uso de inteligencia artificial", b.ai_disclosure],
+    ["Financiación", b.funding || "Sin declaración en esta versión."],
+    [
+      "Conflictos de interés",
+      b.conflicts || "Sin declaración en esta versión.",
+    ],
+    ["Consideraciones éticas", b.ethics || "Sin declaración en esta versión."],
+    [
+      "Datos y materiales",
+      b.data_availability || "Sin declaración en esta versión.",
+    ],
   ]) {
     if (y < 125) next();
     para(heading, 13, bold);
