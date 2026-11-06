@@ -2356,3 +2356,16 @@ input[type="checkbox"] {
     margin-left: auto;
   }
 }
+@media (max-width: 580px) {
+  .masthead {
+    gap: 8px;
+  }
+  .masthead .brand {
+    font-size: clamp(46px, 15vw, 60px);
+  }
+  .masthead-submit {
+    white-space: nowrap;
+    font-size: 8.5px;
+    padding: 10px 8px;
+  }
+}
