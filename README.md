@@ -73,7 +73,7 @@ Para una instalación nueva: `node scripts/prepare-owner.mjs` crea credenciales 
 1. Añade claves propias en los secretos del Worker, nunca en `public/` ni variables públicas.
 2. Configura los IDs exactos disponibles para tu cuenta: `OPENAI_MODEL` y `ANTHROPIC_MODEL` en `wrangler.json`.
 3. El adaptador OpenAI usa Responses, `store:false`, salida JSON Schema, esfuerzo high y 7.000 tokens máximos. El modelo inicial configurado es `gpt-6-astra`; su acceso debe comprobarse con tu cuenta.
-4. El adaptador Anthropic usa Messages, respuesta JSON validada, 7.000 tokens máximos; `ANTHROPIC_MODEL` queda vacío para que configures el modelo contratado.
+4. El adaptador Anthropic usa Messages, respuesta JSON validada, 7.000 tokens máximos; `ANTHROPIC_MODEL` queda configurado como `claude-opus-5-5`, solicitado por el fundador y verificado en la documentación oficial; su acceso debe comprobarse con tu cuenta.
 5. Cambia `AI_ENABLED` a `true` y despliega. El autor debe guardar el consentimiento y pulsar la evaluación deseada.
 
 ```sh
@@ -84,7 +84,7 @@ node scripts/cloudflare.mjs deploy
 
 No hay claves de proveedores reutilizadas de otros proyectos. Límites iniciales: 3 solicitudes por usuario/día, 20 globales/día, 65.000 caracteres por manuscrito y 90 segundos por proveedor. No son un presupuesto monetario: configura también límites de gasto en las cuentas de los proveedores. El resultado no publica automáticamente ni acredita revisión por pares. Los manuscritos no se ejecutan como instrucciones. Las revisiones se ligan al hash canónico y cada contenido/proveedor admite una ejecución simultánea.
 
-Fuentes de integración: https://developers.openai.com/api/docs/guides/structured-outputs y https://platform.claude.com/docs/en/api/messages
+Fuentes de integración: https://developers.openai.com/api/docs/guides/structured-outputs y https://platform.claude.com/docs/en/api/messages y https://platform.claude.com/docs/en/models/opus-5-5/overview
 
 ## Seguridad y estados
 

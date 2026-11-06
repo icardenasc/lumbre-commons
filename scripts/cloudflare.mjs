@@ -58,7 +58,7 @@ if (process.argv[2] === "provision") {
     vars: {
       APP_URL: "https://lumbre-commons.ia-cardenas10.workers.dev",
       OPENAI_MODEL: "gpt-6-astra",
-      ANTHROPIC_MODEL: "",
+      ANTHROPIC_MODEL: "claude-opus-5-5",
       AI_ENABLED: "false",
     },
     observability: { enabled: true },
