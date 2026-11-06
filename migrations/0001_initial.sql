@@ -1,0 +1,15 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE users(id TEXT PRIMARY KEY,username TEXT NOT NULL UNIQUE,name TEXT NOT NULL,password_hash TEXT NOT NULL,salt TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'author' CHECK(role IN ('author','editor')),created_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE TABLE sessions(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires_at INTEGER NOT NULL);
+CREATE INDEX sessions_user ON sessions(user_id);
+CREATE TABLE limits(key TEXT PRIMARY KEY,count INTEGER NOT NULL,expires_at INTEGER NOT NULL);
+CREATE TABLE works(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES users(id),kind TEXT NOT NULL CHECK(kind IN ('article','problem','response','review')),status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','submitted','published','withdrawn')),title TEXT NOT NULL,abstract TEXT NOT NULL,field TEXT NOT NULL,body TEXT NOT NULL,draft_revision INTEGER NOT NULL DEFAULT 1,published_version INTEGER NOT NULL DEFAULT 0,problem_state TEXT NOT NULL DEFAULT 'open' CHECK(problem_state IN ('open','in_progress','resolved')),collection TEXT,editor_note TEXT,created_at TEXT NOT NULL DEFAULT (datetime('now')),updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE INDEX works_public ON works(status,kind,updated_at);
+CREATE INDEX works_owner ON works(owner_id);
+CREATE TABLE versions(id TEXT PRIMARY KEY,work_id TEXT NOT NULL REFERENCES works(id),number INTEGER NOT NULL,title TEXT NOT NULL,abstract TEXT NOT NULL,body TEXT NOT NULL,hash TEXT NOT NULL,r2_key TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT (datetime('now')),UNIQUE(work_id,number));
+CREATE TABLE edges(id TEXT PRIMARY KEY,source_id TEXT NOT NULL REFERENCES works(id),source_version INTEGER NOT NULL,target_id TEXT NOT NULL REFERENCES works(id),target_version INTEGER NOT NULL,relation TEXT NOT NULL CHECK(relation IN ('extends','challenges','replicates','supports','responds','reviews','addresses')),target_claim TEXT,created_at TEXT NOT NULL DEFAULT (datetime('now')),UNIQUE(source_id,source_version,target_id,target_version,relation));
+CREATE INDEX edges_target ON edges(target_id,target_version);
+CREATE TABLE collaborations(work_id TEXT NOT NULL REFERENCES works(id),user_id TEXT NOT NULL REFERENCES users(id),contribution TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT (datetime('now')),PRIMARY KEY(work_id,user_id));
+CREATE TABLE reviews(id TEXT PRIMARY KEY,work_id TEXT NOT NULL REFERENCES works(id),draft_revision INTEGER NOT NULL,content_hash TEXT NOT NULL,provider TEXT NOT NULL,model TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN ('running','completed','failed')),result TEXT,error TEXT,created_at TEXT NOT NULL DEFAULT (datetime('now')),UNIQUE(work_id,content_hash,provider));
+CREATE TABLE audit(id TEXT PRIMARY KEY,actor_id TEXT NOT NULL REFERENCES users(id),work_id TEXT,action TEXT NOT NULL,detail TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
