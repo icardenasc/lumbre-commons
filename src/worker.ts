@@ -708,14 +708,14 @@ export default {
           asset.pathname = `/manuscript-template-${locale}.md`;
         response = await env.ASSETS.fetch(new Request(asset, req));
       } else if (url.pathname === "/feed.xml") {
-        const works = await publicWorks(env);
+        const works = await localizedWorks(env, await publicWorks(env), locale);
         const base = env.APP_URL;
         response = new Response(
           `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Lumbre · ${escapeHtml(tr("Revista de investigación abierta", locale))}</title><link>${escapeHtml(base + localizedPath("/", locale))}</link><description>${escapeHtml(tr("Revista de investigación abierta", locale))}</description><language>${locale}</language><atom:link href="${escapeHtml(base)}/feed.xml" rel="self" type="application/rss+xml"/>${works
             .slice(0, 50)
             .map(
               (w) =>
-                `<item><title>${escapeHtml(w.title)}</title><link>${escapeHtml(base)}/works/${escapeHtml(w.id)}?v=${w.published_version}</link><guid isPermaLink="true">${escapeHtml(base)}/works/${escapeHtml(w.id)}?v=${w.published_version}</guid><description>${escapeHtml(w.abstract)}</description><category>${escapeHtml(w.field)}</category><pubDate>${new Date(w.updated_at.includes("T") ? w.updated_at : w.updated_at.replace(" ", "T") + "Z").toUTCString()}</pubDate></item>`,
+                `<item><title>${escapeHtml(w.title)}</title><link>${escapeHtml(base + localizedPath("/works/" + w.id, locale))}?v=${w.published_version}</link><guid isPermaLink="true">${escapeHtml(base)}/works/${escapeHtml(w.id)}?v=${w.published_version}</guid><description>${escapeHtml(w.abstract)}</description><category>${escapeHtml(w.field)}</category><pubDate>${new Date(w.updated_at.includes("T") ? w.updated_at : w.updated_at.replace(" ", "T") + "Z").toUTCString()}</pubDate></item>`,
             )
             .join("")}</channel></rss>`,
           { headers: { "Content-Type": "application/rss+xml; charset=utf-8" } },
