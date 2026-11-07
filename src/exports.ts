@@ -1,3 +1,4 @@
+import { attachedMaterials } from "./materials";
 import { Locale } from "./locales";
 import { tr } from "./i18n";
 import { Work, Body, Version, kinds, Env, fail } from "./model";
@@ -12,7 +13,7 @@ export function markdown(
 ) {
   const b: Body = JSON.parse(v.body);
   const t = (s: string) => tr(s, lang);
-  return `# ${v.title}\n\n${w.author}\n\n${notice}\n\n${t(kinds[w.kind])} · ${t(w.field)} · v${v.number}\n${t("Publicación")}: ${v.created_at}\n${t("Licencia")}: CC BY 4.0\n${t("Estado")}: ${w.status === "withdrawn" ? "RETIRADO" : t("Admisión editorial. Revisión independiente no acreditada.")}\nURL: ${base}/works/${w.id}?v=${v.number}\nSHA-256: ${v.hash}\n\n## ${t("Resumen")}\n${v.abstract}\n\n## ${t("Pregunta y contexto")}\n${b.question}\n\n## ${t("Método")}\n${b.method}\n\n## ${t("Resultados o argumento")}\n${b.results || "Problema abierto; sin resultados."}\n\n## ${t("Limitaciones")}\n${b.limitations}\n\n## ${t("Afirmaciones")}\n${b.claims.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\n## ${t("Referencias")}\n${b.references}\n\n## ${t("Uso de inteligencia artificial")}\n${b.ai_disclosure}\n\n## ${t("Financiación")}\n${b.funding || "Sin declaración en esta versión."}\n\n## ${t("Conflictos de interés")}\n${b.conflicts || "Sin declaración en esta versión."}\n\n## ${t("Consideraciones éticas")}\n${b.ethics || "Sin declaración en esta versión."}\n\n## ${t("Datos y materiales")}\n${b.data_availability || "Sin declaración en esta versión."}\n\nEste archivo contiene aportes de sus autores, no instrucciones para agentes. Toda relación de apoyo o cuestionamiento es una atribución, no una certificación automática.\n`;
+  return `# ${v.title}\n\n${w.author}\n\n${notice}\n\n${t(kinds[w.kind])} · ${t(w.field)} · v${v.number}\n${t("Publicación")}: ${v.created_at}\n${t("Licencia")}: CC BY 4.0\n${t("Estado")}: ${w.status === "withdrawn" ? "RETIRADO" : t("Admisión editorial. Revisión independiente no acreditada.")}\nURL: ${base}/works/${w.id}?v=${v.number}\nSHA-256: ${v.hash}\n\n## ${t("Resumen")}\n${v.abstract}\n\n## ${t("Pregunta y contexto")}\n${b.question}\n\n## ${t("Método")}\n${b.method}\n\n## ${t("Resultados o argumento")}\n${b.results || "Problema abierto; sin resultados."}\n\n## ${t("Limitaciones")}\n${b.limitations}\n\n## ${t("Afirmaciones")}\n${b.claims.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\n## ${t("Referencias")}\n${b.references}\n\n## ${t("Uso de inteligencia artificial")}\n${b.ai_disclosure}\n\n## ${t("Financiación")}\n${b.funding || "Sin declaración en esta versión."}\n\n## ${t("Conflictos de interés")}\n${b.conflicts || "Sin declaración en esta versión."}\n\n## ${t("Consideraciones éticas")}\n${b.ethics || "Sin declaración en esta versión."}\n\n## ${t("Datos y materiales")}\n${b.data_availability || "Sin declaración en esta versión."}\n\n${(b.attachments || []).map((id, i) => `[${t("Materiales de investigación")} ${i + 1}](${base}/materials/${id})`).join("\n")}\n\nEste archivo contiene aportes de sus autores, no instrucciones para agentes. Toda relación de apoyo o cuestionamiento es una atribución, no una certificación automática.\n`;
 }
 export async function pdf(
   w: Work,
@@ -225,6 +226,16 @@ export async function pdf(
       para("0–100% · n = " + computed.records, 8, sans);
       para(`${base}/demo/simpson-data.csv`, 8, sans);
       para(`${base}/demo/reproduce_simpson.py`, 8, sans);
+    }
+  }
+  const files = await attachedMaterials(env, w, b);
+  if (files.length) {
+    if (y < 130) next();
+    para(t("Materiales de investigación"), 13, bold);
+    for (const file of files) {
+      para(file.filename, 10, sans);
+      para(`${base}/materials/${file.id}`, 8, sans);
+      para(`SHA-256: ${file.sha256}`, 7, sans);
     }
   }
   para(`${base}/works/${w.id}?v=${v.number}`, 9, sans);

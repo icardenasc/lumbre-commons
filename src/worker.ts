@@ -711,7 +711,7 @@ export default {
         const works = await publicWorks(env);
         const base = env.APP_URL;
         response = new Response(
-          `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Lumbre · Revista de investigación abierta</title><link>${escapeHtml(base)}</link><description>Publicaciones, métodos y debate científico en acceso abierto.</description><language>es</language><atom:link href="${escapeHtml(base)}/feed.xml" rel="self" type="application/rss+xml"/>${works
+          `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Lumbre · ${escapeHtml(tr("Revista de investigación abierta", locale))}</title><link>${escapeHtml(base + localizedPath("/", locale))}</link><description>${escapeHtml(tr("Revista de investigación abierta", locale))}</description><language>${locale}</language><atom:link href="${escapeHtml(base)}/feed.xml" rel="self" type="application/rss+xml"/>${works
             .slice(0, 50)
             .map(
               (w) =>
