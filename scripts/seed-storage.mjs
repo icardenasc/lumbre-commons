@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+const directory =
+  process.argv[2] === "demo" ? ".wrangler/demo" : ".wrangler/seed";
 for (const item of JSON.parse(
-  readFileSync(".wrangler/seed/manifest.json", "utf8"),
+  readFileSync(directory + "/manifest.json", "utf8"),
 )) {
   const r = spawnSync(
     process.execPath,
@@ -12,7 +14,7 @@ for (const item of JSON.parse(
       "put",
       "lumbre-commons-artifacts/" + item.key,
       "--file",
-      ".wrangler/seed/" + item.id + ".json",
+      directory + "/" + item.id + ".json",
       "--content-type",
       "application/json",
       "--remote",

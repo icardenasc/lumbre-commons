@@ -1,8 +1,36 @@
 "use strict";
+const currentLang = document.documentElement.lang || "es";
+const localPath = (path) => {
+  if (
+    currentLang === "es" ||
+    !path.startsWith("/") ||
+    path.startsWith("//") ||
+    /^\/(api|demo)\//.test(path) ||
+    /^\/(en|pt|fr)(\/|$)/.test(path)
+  )
+    return path;
+  return "/" + currentLang + (path === "/" ? "" : path);
+};
+const translateUI = (text) => {
+  const m = window.LUMBRE_MESSAGES || {};
+  const key = String(text).trim();
+  if (m[key] && m[key] !== key) return String(text).replace(key, m[key]);
+  const n = key.match(/^(\d+) de 8 secciones básicas$/);
+  if (n)
+    return (
+      n[1] +
+      ({
+        en: " of 8 core sections",
+        pt: " de 8 seções básicas",
+        fr: " sur 8 sections principales",
+      }[currentLang] || " de 8 secciones básicas")
+    );
+  return text;
+};
 const $ = (s) => document.querySelector(s);
 function notify(message, error = false) {
   const el = $("#toast");
-  el.textContent = message;
+  el.textContent = translateUI(message);
   el.hidden = false;
   el.classList.toggle("error", error);
   clearTimeout(window.toastTimer);
@@ -38,7 +66,10 @@ function bindForm(id, handler) {
       await handler(new FormData(form), form, ev);
     } catch (e) {
       if (err) {
-        err.textContent = e.message;
+        err.textContent = String(e.message)
+          .split("\n")
+          .map(translateUI)
+          .join("\n");
         err.hidden = false;
         err.scrollIntoView({ block: "center", behavior: "smooth" });
       } else notify(e.message, true);
@@ -54,6 +85,8 @@ bindForm("#auth-form", async (f, form) => {
 bindForm("#work-form", async (f, form) => {
   const value = (n) => String(f.get(n) || "");
   const body = {
+    language: value("language") || currentLang,
+    attachments: JSON.parse(form.dataset.attachments || "[]"),
     question: value("question"),
     method: value("method"),
     results: value("results"),
@@ -93,7 +126,7 @@ bindForm("#work-form", async (f, form) => {
     id ? "PUT" : "POST",
   );
   window.onbeforeunload = null;
-  location.href = "/workspace/" + (id || r.id);
+  location.href = localPath("/workspace/" + (id || r.id));
 });
 const workForm = $("#work-form");
 if (workForm)
@@ -129,7 +162,7 @@ bindForm("#withdraw-form", async (f, form) => {
 });
 bindForm("#owner-form", async (f) => {
   await api("/api/owner-setup", Object.fromEntries(f));
-  location.href = "/editor";
+  location.href = localPath("/editor");
 });
 bindForm("#password-form", async (f) => {
   await api("/api/password", Object.fromEntries(f));
@@ -139,7 +172,7 @@ bindForm("#password-form", async (f) => {
 $("#logout")?.addEventListener("click", async () => {
   try {
     await api("/api/logout", {});
-    location.href = "/";
+    location.href = localPath("/");
   } catch (e) {
     notify(e.message, true);
   }
@@ -189,7 +222,9 @@ for (const b of document.querySelectorAll("[data-copy]"))
 $("#version-select")?.addEventListener(
   "change",
   (e) =>
-    (location.href = "/works/" + e.target.dataset.id + "?v=" + e.target.value),
+    (location.href = localPath(
+      "/works/" + e.target.dataset.id + "?v=" + e.target.value,
+    )),
 );
 const colors = {
     article: "#253ca3",
@@ -216,7 +251,7 @@ async function initGraph() {
   const host = $("#knowledge-graph");
   if (!host) return;
   try {
-    const r = await fetch("/api/graph");
+    const r = await fetch("/api/graph?lang=" + currentLang);
     if (!r.ok) throw Error("No se pudo cargar el grafo.");
     const data = await r.json();
     const draw = () => {
@@ -298,7 +333,10 @@ async function initGraph() {
       }
       for (const n of items) {
         const { x, y } = positions.get(n.id);
-        const a = node("a", { href: "/works/" + n.id, class: "graph-node" });
+        const a = node("a", {
+          href: localPath("/works/" + n.id),
+          class: "graph-node",
+        });
         a.append(
           node("title", {}, n.title),
           node("circle", {
@@ -360,9 +398,9 @@ async function initGraph() {
         const p = document.createElement("p"),
           a = document.createElement("a"),
           b = document.createElement("a");
-        a.href = "/works/" + s.id + "?v=" + edge.source_version;
+        a.href = localPath("/works/" + s.id + "?v=" + edge.source_version);
         a.textContent = s.title;
-        b.href = "/works/" + t.id + "?v=" + edge.target_version;
+        b.href = localPath("/works/" + t.id + "?v=" + edge.target_version);
         b.textContent = t.title;
         p.append(
           a,
@@ -469,7 +507,7 @@ function renderReadingList() {
       a = document.createElement("a"),
       p = document.createElement("p"),
       remove = document.createElement("button");
-    a.href = "/works/" + entry.id;
+    a.href = localPath("/works/" + entry.id);
     a.textContent = entry.title;
     h.append(a);
     p.textContent = entry.author;
@@ -631,6 +669,7 @@ if (workForm) {
       h.textContent = label;
       const p = document.createElement("div");
       p.className = "preview-section";
+      p.setAttribute("data-content", "");
       p.textContent = workForm.elements[id].value || "Sección pendiente.";
       if (!workForm.elements[id].value) p.classList.add("preview-empty");
       preview.append(h, p);
@@ -643,3 +682,150 @@ if (workForm) {
     });
   });
 }
+
+// Localize dynamic interface nodes without changing manuscript text or form values.
+window.addEventListener("DOMContentLoaded", () => {
+  const localizeDynamic = () => {
+    const walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+    );
+    const changes = [];
+    while (walker.nextNode()) {
+      const n = walker.currentNode;
+      if (
+        n.parentElement?.closest(
+          "[data-content],textarea,script,style,code,.saved-row h2,.graph-node",
+        )
+      )
+        continue;
+      const value = translateUI(n.nodeValue);
+      if (value !== n.nodeValue) changes.push([n, value]);
+    }
+    for (const [n, value] of changes) n.nodeValue = value;
+  };
+  localizeDynamic();
+  let pending = false;
+  new MutationObserver(() => {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => {
+      pending = false;
+      localizeDynamic();
+    });
+  }).observe(document.body, {
+    subtree: true,
+    childList: true,
+    characterData: true,
+  });
+});
+const translationButton = document.querySelector("[data-translate]");
+let translationBusy = false;
+async function startReadingTranslation() {
+  if (!translationButton || translationBusy) return;
+  translationBusy = true;
+  translationButton.disabled = true;
+  const status = document.getElementById("translation-progress");
+  const path =
+    "/api/works/" +
+    translationButton.dataset.translate +
+    "/translation?lang=" +
+    translationButton.dataset.target +
+    "&v=" +
+    translationButton.dataset.version;
+  try {
+    status.textContent = translateUI("Preparando traducción…");
+    await api(path, {});
+    let polls = 0;
+    const poll = async () => {
+      try {
+        const response = await fetch(path),
+          result = await response.json();
+        if (!response.ok) throw Error(result.error);
+        const t = result.translation;
+        if (t?.status === "ready") {
+          status.textContent = translateUI(
+            "Traducción completada. Abriendo el artículo…",
+          );
+          location.reload();
+          return;
+        }
+        if (t?.status === "failed")
+          throw Error(t.error || "No se pudo completar la traducción.");
+        const percent = t?.total ? Math.round((100 * t.progress) / t.total) : 0;
+        status.textContent =
+          translateUI("Preparando traducción…") + " " + percent + "%";
+        if (++polls < 120) setTimeout(poll, 3000);
+        else {
+          status.textContent = translateUI(
+            "La traducción continúa en segundo plano. Puedes volver a esta página.",
+          );
+          translationButton.disabled = false;
+          translationBusy = false;
+        }
+      } catch (error) {
+        status.textContent = translateUI(error.message);
+        translationButton.disabled = false;
+        translationBusy = false;
+      }
+    };
+    await poll();
+  } catch (error) {
+    status.textContent = translateUI(error.message);
+    translationButton.disabled = false;
+    translationBusy = false;
+  }
+}
+translationButton?.addEventListener("click", startReadingTranslation);
+window.addEventListener("DOMContentLoaded", () => {
+  if (translationButton?.dataset.auto === "true") startReadingTranslation();
+});
+
+const materialForm = document.querySelector("#material-form");
+materialForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = materialForm.querySelector("button");
+  button.disabled = true;
+  try {
+    if (window.onbeforeunload)
+      throw Error("Guarda los cambios antes de adjuntar archivos.");
+    const file = document.querySelector("#research-file").files[0];
+    if (!file) throw Error("Selecciona un archivo.");
+    if (file.size > 5 * 1024 * 1024) throw Error("El archivo supera 5 MB.");
+    const response = await fetch(
+      "/api/materials/" + materialForm.dataset.work,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": file.type || "application/octet-stream",
+          "X-File-Name": encodeURIComponent(file.name),
+        },
+        body: file,
+      },
+    );
+    const result = await response.json();
+    if (!response.ok) throw Error(result.error);
+    location.reload();
+  } catch (error) {
+    notify(translateUI(error.message), true);
+    button.disabled = false;
+  }
+});
+for (const button of document.querySelectorAll("[data-detach]"))
+  button.addEventListener("click", async () => {
+    try {
+      if (window.onbeforeunload)
+        throw Error("Guarda los cambios antes de adjuntar archivos.");
+      await api(
+        "/api/materials/" +
+          button.dataset.work +
+          "?id=" +
+          button.dataset.detach,
+        undefined,
+        "DELETE",
+      );
+      location.reload();
+    } catch (error) {
+      notify(translateUI(error.message), true);
+    }
+  });

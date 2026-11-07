@@ -1,0 +1,108 @@
+{
+  "schema": "lumbre-traceability-demo-1",
+  "editorial_demonstration": true,
+  "article": "demo-simpson-mezclas",
+  "source_version": 1,
+  "date": "2026-11-07",
+  "question": "Can the ranking of two synthetic success rates reverse between strata and pooled data?",
+  "inputs": {
+    "generation": "Four deliberately constructed cells; no random samples and no human observations.",
+    "cells": [
+      {
+        "method": "A",
+        "difficulty": "easy",
+        "n": 100,
+        "successes": 90
+      },
+      {
+        "method": "A",
+        "difficulty": "hard",
+        "n": 100,
+        "successes": 30
+      },
+      {
+        "method": "B",
+        "difficulty": "easy",
+        "n": 900,
+        "successes": 720
+      },
+      {
+        "method": "B",
+        "difficulty": "hard",
+        "n": 100,
+        "successes": 20
+      }
+    ]
+  },
+  "operations": [
+    {
+      "step": "generate",
+      "description": "Create a deterministic CSV from specified cell totals and successes."
+    },
+    {
+      "step": "recompute",
+      "description": "Read the written CSV and compute all rates with fractions.Fraction."
+    },
+    {
+      "step": "verify",
+      "description": "Assert 1200 rows, +1/10 difference in both strata and -14/100 pooled difference."
+    },
+    {
+      "step": "export",
+      "description": "Write numeric JSON summary and four localized SVG figures."
+    }
+  ],
+  "verification": {
+    "executed": true,
+    "python": "3.9.6",
+    "stdlib_only": true,
+    "all_assertions_passed": true,
+    "records": 1200,
+    "successes": 860
+  },
+  "artifacts": [
+    {
+      "path": "/demo/simpson-data.csv",
+      "sha256": "e91e1bf5f1d42d00f8992147a11f138cb63bf28b6a85e534eaf6093bc7ec6364"
+    },
+    {
+      "path": "/demo/simpson-results.json",
+      "sha256": "309a8f9e067db31458c498417f7c0d0e251f9ebaf90b03609705a6169f0e2528"
+    },
+    {
+      "path": "/demo/reproduce_simpson.py",
+      "sha256": "90cd3d7807cf66af2943e76b0a6301af6888dd67c15051ba1d0554f4eb542b41"
+    },
+    {
+      "path": "/demo/simpson-es.svg",
+      "sha256": "4b60e8b21f5a57372c5dab892c582837f013c4a9b1bd367dd9254267536624bd"
+    },
+    {
+      "path": "/demo/simpson-en.svg",
+      "sha256": "5d22bab2960f5d7b08b296cf68169251f01118ee63049cec30d3e49d0a85e00e"
+    },
+    {
+      "path": "/demo/simpson-pt.svg",
+      "sha256": "a65f1c61942f3d09bd7d67c415ef7c86cea32e3309d26320be21fdfdeb20a767"
+    },
+    {
+      "path": "/demo/simpson-fr.svg",
+      "sha256": "6012166e62a1beb79cfc2e757b946d3be432a6bc7d6210bfee3509d1ec1aec34"
+    }
+  ],
+  "ai_assistance": {
+    "roles": [
+      "drafting",
+      "code preparation",
+      "translation"
+    ],
+    "independent_human_peer_review": false,
+    "note": "AI assistance is disclosed; execution and assertions were performed in the development environment. No external reviewers are claimed."
+  },
+  "limitations": [
+    "The dataset is synthetic and deliberately constructed.",
+    "No causal effect, real model performance, or intervention effect is estimated.",
+    "A hash checks identity, not scientific validity.",
+    "This is an example record, not a FAIR certification."
+  ]
+}

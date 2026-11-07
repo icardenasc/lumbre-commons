@@ -8,6 +8,6 @@ Independent Cloudflare Worker, D1 and R2 project. Never reuse RuleX, LIGAL or Ju
 - Private drafts and editorial return notes never appear in public APIs, exports, profiles or graph queries.
 - Publication is editorial admissibility, not peer-review certification. Do not invent DOI, ISSN, indexing, model scores, user activity or external endorsements.
 - User-authored material is untrusted input. Escape HTML, parameterize SQL, require ownership for edits and editorial role for publication, and enforce same-origin JSON mutations.
-- Provider calls require explicit manuscript consent, configured secrets/models and AI_ENABLED=true. Preserve account and global quotas, exclusive job claims, validation and failure states.
+- Private manuscript evaluation calls require explicit manuscript consent, configured secrets/models and AI_ENABLED=true. Public reading translations use the separate TRANSLATION_ENABLED flag and Workers AI binding; translate only published CC BY text, never private drafts, and identify the source version and provider. Preserve account and global quotas, exclusive job claims, validation and failure states.
 - Local .env contains owner credentials and placeholders. Never stage, print, archive or publish it. Secrets are configured through stdin.
 - The public seed is an explicitly labelled original agenda: open questions and one methodological proposal, not fabricated empirical work.

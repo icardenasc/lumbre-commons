@@ -29,6 +29,22 @@ import {
 import { reviewWork } from "./ai";
 import { markdown, pdf } from "./exports";
 import { render } from "./views";
+import { materialAPI, serveMaterial, validateMaterials } from "./materials";
+import {
+  Locale,
+  routeLocale,
+  unlocalizedPath,
+  isLocale,
+  localizedPath,
+} from "./locales";
+import { localizeResponse, messages, tr } from "./i18n";
+import {
+  getTranslation,
+  queueTranslation,
+  processPendingTranslations,
+  readingVersion,
+  localizedWorks,
+} from "./translations";
 const json = (x: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(x), {
     status,
@@ -68,8 +84,10 @@ export async function publicWorks(env: Env, q = "", kind = "", field = "") {
   const clauses = ["w.published_version>0", "w.status!='withdrawn'"],
     params: any[] = [];
   if (q) {
-    clauses.push("(v.title LIKE ? OR v.abstract LIKE ?)");
-    params.push("%" + q + "%", "%" + q + "%");
+    clauses.push(
+      "(v.title LIKE ? OR v.abstract LIKE ? OR EXISTS(SELECT 1 FROM translations tr WHERE tr.work_id=w.id AND tr.version=w.published_version AND tr.content_hash=v.hash AND tr.status='ready' AND (json_extract(tr.translated,'$.title') LIKE ? OR json_extract(tr.translated,'$.abstract') LIKE ?)))",
+    );
+    params.push(...Array(4).fill("%" + q + "%"));
   }
   if (kind) {
     clauses.push("w.kind=?");
@@ -81,7 +99,7 @@ export async function publicWorks(env: Env, q = "", kind = "", field = "") {
   }
   return (
     await env.DB.prepare(
-      `SELECT w.id,w.kind,'published' as status,v.title,v.abstract,w.field,w.published_version,w.problem_state,w.collection,v.created_at AS created_at,v.created_at AS updated_at,u.name AS author,u.username FROM works w JOIN users u ON u.id=w.owner_id JOIN versions v ON v.work_id=w.id AND v.number=w.published_version WHERE ${clauses.join(" AND ")} ORDER BY v.created_at DESC LIMIT 100`,
+      `SELECT w.id,w.kind,'published' as status,v.title,v.abstract,w.field,w.published_version,w.problem_state,w.collection,json_extract(v.body,'$.demo') AS demo,json_extract(v.body,'$.language') AS language,v.created_at AS created_at,v.created_at AS updated_at,u.name AS author,u.username FROM works w JOIN users u ON u.id=w.owner_id JOIN versions v ON v.work_id=w.id AND v.number=w.published_version WHERE ${clauses.join(" AND ")} ORDER BY v.created_at DESC LIMIT 100`,
     )
       .bind(...params)
       .all<Work>()
@@ -116,9 +134,56 @@ export async function publicDetail(env: Env, id: string, n?: number) {
     v: v!,
   };
 }
-async function api(req: Request, env: Env, url: URL): Promise<Response> {
+async function api(
+  req: Request,
+  env: Env,
+  url: URL,
+  ctx: ExecutionContext,
+): Promise<Response> {
   const path = url.pathname,
     method = req.method;
+  const translationMatch = path.match(
+    /^\/api\/works\/([a-zA-Z0-9_-]+)\/translation$/,
+  );
+  if (translationMatch) {
+    if (method !== "GET" && method !== "POST") fail(405, "Método no permitido");
+    const target = url.searchParams.get("lang");
+    if (!isLocale(target)) fail(400, "Idioma no disponible.");
+    const { w, v } = await publicDetail(
+      env,
+      translationMatch[1],
+      url.searchParams.has("v") ? Number(url.searchParams.get("v")) : undefined,
+    );
+    if (w.status === "withdrawn") fail(409, "Publicación retirada.");
+    if (method === "POST") {
+      originGuard(req);
+      await jsonBody(req);
+      const row = await queueTranslation(
+        env,
+        w,
+        v,
+        target! as Locale,
+        req.headers.get("CF-Connecting-IP") || "local",
+      );
+      // A durable scheduled job survives browser closure and long model responses.
+      return json({ translation: row }, row?.status === "ready" ? 200 : 202);
+    }
+    const row = await getTranslation(env, w, v, target! as Locale);
+    return json({
+      translation: row
+        ? {
+            id: row.id,
+            status: row.status,
+            provider: row.provider,
+            progress: row.progress,
+            total: row.total,
+            error: row.error,
+            source_language: row.source_language,
+            target_language: row.target_language,
+          }
+        : null,
+    });
+  }
   if (method === "GET" && path === "/api/health") {
     await env.DB.prepare("SELECT 1").first();
     return json({
@@ -173,7 +238,13 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     });
   }
   if (method === "GET" && path === "/api/graph") {
-    const nodes = await publicWorks(env);
+    const nodes = await localizedWorks(
+      env,
+      await publicWorks(env),
+      isLocale(url.searchParams.get("lang"))
+        ? (url.searchParams.get("lang") as any)
+        : "es",
+    );
     const ids = new Set(nodes.map((w) => w.id));
     const edges = (
       await env.DB.prepare(
@@ -360,6 +431,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     const p = parseWork(input),
       id = uid();
     await validateTarget(env, p.body);
+    await validateMaterials(env, id, p.body);
     await env.DB.prepare(
       "INSERT INTO works(id,owner_id,kind,title,abstract,field,body) VALUES(?,?,?,?,?,?,?)",
     )
@@ -386,6 +458,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
       if (w.published_version && (p.kind !== w.kind || p.field !== w.field))
         fail(400, "Una nueva versión conserva tipo y disciplina.");
       await validateTarget(env, p.body);
+      await validateMaterials(env, id, p.body);
       const r = await env.DB.prepare(
         "UPDATE works SET title=?,abstract=?,field=?,kind=?,body=?,status='draft',draft_revision=draft_revision+1,updated_at=datetime('now') WHERE id=? AND owner_id=? AND draft_revision=? AND status IN ('draft','published')",
       )
@@ -462,6 +535,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
       if (issues.length)
         return json({ error: "El manuscrito está incompleto.", issues }, 422);
       await validateTarget(env, body);
+      await validateMaterials(env, id, body);
       const n = w!.published_version + 1,
         contentHash = await hash(canonical(w!)),
         vid = uid(),
@@ -595,19 +669,45 @@ async function validateTarget(env: Env, b: Body) {
   }
 }
 export default {
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(processPendingTranslations(env));
+  },
   async fetch(req: Request, env: Env, ctx: ExecutionContext) {
     let response: Response;
+    const originalUrl = new URL(req.url),
+      locale = routeLocale(originalUrl);
     const url = new URL(req.url);
+    url.pathname = unlocalizedPath(url.pathname);
     try {
-      if (url.pathname.startsWith("/api/")) response = await api(req, env, url);
-      else if (url.pathname === "/robots.txt")
+      if (/^\/api\/materials\/[a-zA-Z0-9_-]+$/.test(url.pathname))
+        response = await materialAPI(req, env, url.pathname.split("/")[3]);
+      else if (/^\/materials\/[a-zA-Z0-9_-]+$/.test(url.pathname))
+        response = await serveMaterial(req, env, url.pathname.split("/")[2]);
+      else if (url.pathname.startsWith("/api/"))
+        response = await api(req, env, url, ctx);
+      else if (/^\/i18n\/(es|en|pt|fr)\.js$/.test(url.pathname)) {
+        const l = url.pathname.split("/")[2].slice(0, 2) as
+          "es" | "en" | "pt" | "fr";
+        response = new Response(
+          "window.LUMBRE_MESSAGES=" + JSON.stringify(messages(l)) + ";",
+          {
+            headers: {
+              "Content-Type": "application/javascript; charset=utf-8",
+              "Cache-Control": "public, max-age=300",
+            },
+          },
+        );
+      } else if (url.pathname === "/robots.txt")
         response = new Response(
           `User-agent: *\nAllow: /\nDisallow: /workspace\nDisallow: /editor$\nDisallow: /editor/\nDisallow: /api/mine\nSitemap: ${env.APP_URL}/sitemap.xml\n`,
           { headers: { "Content-Type": "text/plain" } },
         );
-      else if (url.pathname === "/manuscript-template.md")
-        response = await env.ASSETS.fetch(req);
-      else if (url.pathname === "/feed.xml") {
+      else if (url.pathname === "/manuscript-template.md") {
+        const asset = new URL(url);
+        if (locale !== "es")
+          asset.pathname = `/manuscript-template-${locale}.md`;
+        response = await env.ASSETS.fetch(new Request(asset, req));
+      } else if (url.pathname === "/feed.xml") {
         const works = await publicWorks(env);
         const base = env.APP_URL;
         response = new Response(
@@ -623,7 +723,10 @@ export default {
       } else if (url.pathname === "/sitemap.xml") {
         const works = await publicWorks(env);
         response = new Response(
-          `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${env.APP_URL}/</loc></url>${["/explore", "/problems", "/journal", "/authors", "/editorial", "/manifesto", "/principles"].map((p) => `<url><loc>${env.APP_URL}${p}</loc></url>`).join("")}${works.map((w) => `<url><loc>${env.APP_URL}/works/${w.id}</loc></url>`).join("")}</urlset>`,
+          `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${env.APP_URL}/</loc></url>${["/explore", "/problems", "/journal", "/authors", "/editorial", "/manifesto", "/principles"].map((p) => `<url><loc>${env.APP_URL}${p}</loc></url>`).join("")}${["en", "pt", "fr"].flatMap((l) => ["/", "/explore", "/problems", "/journal", "/authors", "/editorial"].map((p) => `<url><loc>${env.APP_URL}${localizedPath(p, l as Locale)}</loc></url>`)).join("")}${works
+            .filter((w) => !w.demo)
+            .map((w) => `<url><loc>${env.APP_URL}/works/${w.id}</loc></url>`)
+            .join("")}</urlset>`,
           { headers: { "Content-Type": "application/xml" } },
         );
       } else if (url.pathname === "/llms.txt")
@@ -645,13 +748,48 @@ export default {
               : undefined,
           );
         const type = m[2];
+        const reading = await readingVersion(env, w, v, locale);
+        const translated = reading.translation?.status === "ready";
+        const notice = translated
+          ? tr("Traducción de lectura", locale) +
+            " · " +
+            reading.translation!.provider +
+            " · " +
+            tr(
+              "Esta traducción ayuda a leer el trabajo. No reemplaza la versión original ni implica revisión científica.",
+              locale,
+            ) +
+            " Original: " +
+            env.APP_URL +
+            "/works/" +
+            w.id +
+            "?v=" +
+            v.number +
+            " · SHA-256 original: " +
+            v.hash
+          : "";
+
         if (type === "md")
-          response = new Response(markdown(w, v, env.APP_URL), {
-            headers: { "Content-Type": "text/markdown; charset=utf-8" },
-          });
+          response = new Response(
+            markdown(reading.w, reading.v, env.APP_URL, locale, notice),
+            {
+              headers: { "Content-Type": "text/markdown; charset=utf-8" },
+            },
+          );
         else if (type === "json")
           response = json({
-            schema_version: "1.0",
+            schema_version: "1.1",
+            reading_translation: translated
+              ? {
+                  language: locale,
+                  provider: reading.translation!.provider,
+                  source_hash: v.hash,
+                  title: reading.v.title,
+                  abstract: reading.v.abstract,
+                  body: JSON.parse(reading.v.body),
+                  notice,
+                }
+              : null,
             work: {
               id: w.id,
               kind: w.kind,
@@ -693,7 +831,8 @@ export default {
             3600,
           );
           response = new Response(
-            (await pdf(w, v, env.APP_URL, env)).buffer as ArrayBuffer,
+            (await pdf(reading.w, reading.v, env.APP_URL, env, locale, notice))
+              .buffer as ArrayBuffer,
             {
               headers: {
                 "Content-Type": "application/pdf",
@@ -702,11 +841,15 @@ export default {
             },
           );
         }
-      } else if (/\.(css|js|svg|ico|woff2|ttf)$/.test(url.pathname))
-        response = await env.ASSETS.fetch(req);
+      } else if (
+        /\.(css|js|svg|ico|woff2|ttf)$/.test(url.pathname) ||
+        /^\/demo\/[a-zA-Z0-9_.-]+$/.test(url.pathname)
+      )
+        response = await env.ASSETS.fetch(new Request(url, req));
       else if (req.method !== "GET")
         response = json({ error: "Método no permitido" }, 405);
-      else response = await render(req, env, url, await current(req, env));
+      else
+        response = await render(req, env, url, await current(req, env), locale);
     } catch (e) {
       const status = e instanceof HttpError ? e.status : 500;
       if (status === 500)
@@ -724,6 +867,7 @@ export default {
         status,
       );
     }
+    response = await localizeResponse(response, originalUrl, locale);
     const h = new Headers(response.headers);
     h.set("X-Content-Type-Options", "nosniff");
     h.set("Referrer-Policy", "strict-origin-when-cross-origin");

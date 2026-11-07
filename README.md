@@ -1,6 +1,6 @@
 # Lumbre
 
-**Lumbre — Revista científica de investigación abierta.** Publicación interdisciplinaria en español, con respuestas citables, preguntas abiertas y versiones trazables. Etapa editorial de apertura, con infraestructura independiente en Cloudflare.
+**Lumbre — Revista científica de investigación abierta.** Publicación interdisciplinaria en español, inglés, portugués y francés, con respuestas citables, preguntas abiertas y versiones trazables. Etapa editorial de apertura, con infraestructura independiente en Cloudflare.
 
 - Sitio: https://lumbre-commons.ia-cardenas10.workers.dev
 - Código: https://github.com/icardenasc/lumbre-commons
@@ -20,7 +20,7 @@
 - Lectura con índice, modo sin distracciones, tamaño de letra, referencias y biblioteca personal local.
 - Editor por secciones, progreso, vista previa y declaraciones de financiación, conflictos, ética y datos.
 - Guía de manuscrito descargable, RSS por versión, RIS, metadatos bibliográficos, sitemap y llms.txt.
-- Adaptadores OpenAI Responses y Anthropic Messages, rúbrica validada, estados de error y consentimiento. **Desactivados hasta configurar claves y modelos. No se ejecutaron llamadas pagadas.**
+- Adaptadores OpenAI Responses y Anthropic Messages, rúbrica validada, estados de error y consentimiento. **La evaluación metodológica sigue desactivada hasta configurar claves y modelos. La traducción pública sí utiliza Workers AI.**
 
 El contenido inicial es una agenda original identificada como tal: tres problemas abiertos y una propuesta metodológica asistida por IA. No son hallazgos empíricos ni actividad simulada de usuarios.
 
@@ -125,3 +125,15 @@ La identidad pública se organiza como revista científica de investigación abi
 La lista de lectura se almacena únicamente en localStorage del navegador, con hasta 200 referencias, y no se sincroniza con la cuenta. La vista previa de manuscritos usa nodos de texto y no ejecuta HTML del autor. Las nuevas declaraciones son campos opcionales con máximo de 3.000 caracteres cada uno, incluidos en el hash, las versiones, la lectura y las exportaciones; la ausencia se muestra como tal en documentos antiguos.
 
 `/feed.xml` publica hasta 50 versiones recientes, con GUID por versión, y excluye trabajos retirados. Las fechas y el orden públicos se toman de la versión publicada, no de la edición privada de borradores. `/authors` contiene la guía de envío y `/manuscript-template.md` su copia descargable. `node scripts/smoke.mjs /ruta/reporte.json` comprueba las rutas públicas sin crear contenido.
+
+## Edición universal · 7 de noviembre de 2026
+
+Rutas ES `/`, EN `/en`, PT `/pt`, FR `/fr`. Navegación, formularios y políticas localizadas; el idioma del manuscrito se conserva en la versión. La traducción de lectura se guarda por trabajo, versión, hash e idioma. Workers AI Qwen 3.8 27B procesa únicamente texto público, con una cola durable en D1 y recuperación cada minuto. Referencias e identificadores no se traducen. PDF y Markdown muestran la traducción disponible con aviso de procedencia; BibTeX y RIS citan el original. JSON conserva ambos separados.
+
+Límites de traducción: 15 solicitudes nuevas por IP y 30 globales al día; hasta 80.000 caracteres por artículo. La caché evita nuevas llamadas para una misma versión e idioma. Las cuotas son límites de uso, no una garantía de factura cero. `TRANSLATION_ENABLED` y el binding `AI` son independientes de la evaluación privada OpenAI/Anthropic.
+
+Tres demostraciones originales disponibles en los cuatro idiomas, identificadas como tales y sin revisión independiente. El artículo de Simpson incluye 1.200 filas sintéticas, cálculo reproducible en Python y una respuesta enlazada a una afirmación de v1. `node scripts/seed-demos.mjs` genera SQL y snapshots; aplicar `.wrangler/demo/seed.sql` y ejecutar `node scripts/seed-storage.mjs demo` usando las credenciales autorizadas. Nunca modifica versiones existentes.
+
+Los autores pueden adjuntar hasta ocho materiales de 5 MB por versión: PNG, JPG, PDF, CSV, JSON, TXT, MD o PY. Se validan extensión, contenido, tamaño y propietario; R2 guarda el archivo y SHA-256. Antes de publicación, solo el propietario y el editor acceden. Quitar un archivo de un nuevo borrador no elimina una versión histórica. Un retiro bloquea el acceso público a sus materiales. Esto no importa automáticamente manuscritos PDF/Word ni ejecuta código.
+
+Validación: `npm run check`, suite local de 13 pruebas incluyendo aislamiento de materiales y cuatro idiomas, reproducción determinista del CSV y smoke público ampliado. Ver informe de entrega para resultados de producción y límites aún pendientes.

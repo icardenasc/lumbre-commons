@@ -1,0 +1,52 @@
+{
+  "demonstration": true,
+  "generation": "deterministic constructed cells, no random draws",
+  "records": 1200,
+  "successes": 860,
+  "cells": [
+    {
+      "method": "A",
+      "difficulty": "easy",
+      "n": 100,
+      "successes": 90
+    },
+    {
+      "method": "A",
+      "difficulty": "hard",
+      "n": 100,
+      "successes": 30
+    },
+    {
+      "method": "B",
+      "difficulty": "easy",
+      "n": 900,
+      "successes": 720
+    },
+    {
+      "method": "B",
+      "difficulty": "hard",
+      "n": 100,
+      "successes": 20
+    }
+  ],
+  "rates": {
+    "A": {
+      "easy": 0.9,
+      "hard": 0.3,
+      "pooled": 0.6,
+      "standardized_50_50": 0.6,
+      "standardized_5_6_1_6": 0.8
+    },
+    "B": {
+      "easy": 0.8,
+      "hard": 0.2,
+      "pooled": 0.74,
+      "standardized_50_50": 0.5,
+      "standardized_5_6_1_6": 0.7
+    }
+  },
+  "pooled_difference_percentage_points": -14.0,
+  "common_weight_difference_percentage_points": 10,
+  "reversal_condition": "p_B - p_A > 1/6, for the cell rates specified here",
+  "csv_sha256": "e91e1bf5f1d42d00f8992147a11f138cb63bf28b6a85e534eaf6093bc7ec6364"
+}

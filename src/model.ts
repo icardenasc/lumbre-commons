@@ -1,5 +1,7 @@
 export interface Env {
   DB: D1Database;
+  AI?: Ai;
+  TRANSLATION_ENABLED?: string;
   ARTIFACTS: R2Bucket;
   ASSETS: Fetcher;
   APP_URL: string;
@@ -17,6 +19,16 @@ export interface User {
   role: "author" | "editor";
 }
 export interface Body {
+  language?: "es" | "en" | "pt" | "fr";
+  demo?: boolean;
+  attachments?: string[];
+  assets?: {
+    figure?: Record<string, string>;
+    csv?: string;
+    script?: string;
+    results?: string;
+    manifest?: string;
+  };
   question: string;
   method: string;
   results: string;
@@ -37,6 +49,8 @@ export interface Body {
   ai_consent: boolean;
 }
 export interface Work {
+  demo?: boolean;
+  language?: string;
   id: string;
   owner_id: string;
   kind: string;
@@ -155,7 +169,20 @@ export function parseWork(input: any) {
       400,
       "Completa tipo, disciplina, título (8 caracteres) y resumen (30 caracteres).",
     );
+  if (
+    b.attachments !== undefined &&
+    (!Array.isArray(b.attachments) ||
+      b.attachments.length > 8 ||
+      b.attachments.some(
+        (x: unknown) =>
+          typeof x !== "string" || !/^[-a-zA-Z0-9]{1,80}$/.test(x),
+      ))
+  )
+    fail(400, "Materiales adjuntos inválidos.");
   const body: Body = {
+    language: ["es", "en", "pt", "fr"].includes(b.language) ? b.language : "es",
+    demo: b.demo === true,
+    attachments: [...new Set<string>(b.attachments || [])],
     question: str(b.question, 8000),
     method: str(b.method, 12000),
     results: str(b.results, 18000),

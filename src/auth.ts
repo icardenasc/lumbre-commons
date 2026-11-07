@@ -61,11 +61,14 @@ export async function session(env: Env, u: User) {
 export function cookie(req: Request, value: string, age = 604800) {
   return `lumbre_session=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${new URL(req.url).protocol === "https:" ? "; Secure" : ""}`;
 }
-export function originGuard(req: Request) {
+export function originGuard(req: Request, requireJSON = true) {
   const origin = req.headers.get("Origin");
   if (origin !== new URL(req.url).origin)
     fail(403, "Origen de solicitud no permitido.");
-  if (!req.headers.get("Content-Type")?.startsWith("application/json"))
+  if (
+    requireJSON &&
+    !req.headers.get("Content-Type")?.startsWith("application/json")
+  )
     fail(415, "Se requiere application/json.");
 }
 export async function jsonBody(req: Request) {

@@ -307,6 +307,159 @@ test("Flujo editorial, aislamiento, versiones, respuestas y seguridad", async (t
       assert.equal((await call("/api/works", invalid, ca)).status, 400);
     },
   );
+  await t.test(
+    "materiales privados, publicación, historial y retiro",
+    async () => {
+      const made = await call("/api/works", full, ca);
+      assert.equal(made.status, 201);
+      const wid = made.data.id;
+      const upload = async (name, data, cookie = ca) =>
+        fetch(base + `/api/materials/${wid}`, {
+          method: "POST",
+          headers: {
+            Origin: base,
+            Cookie: cookie,
+            "X-File-Name": encodeURIComponent(name),
+          },
+          body: data,
+        });
+      assert.equal((await upload("bad.svg", "<svg/>")).status, 415);
+      assert.equal((await upload("data.csv", "x,y\n1,2", cb)).status, 404);
+      assert.equal(
+        (await upload("too-big.txt", "x".repeat(5 * 1024 * 1024 + 1))).status,
+        413,
+      );
+      const saved = await upload("datos.csv", "x,y\n1,2");
+      assert.equal(saved.status, 201, await saved.clone().text());
+      const material = await saved.json();
+      const list = await call(`/api/materials/${wid}`, undefined, ca, "GET");
+      const mid = list.data.attached[0];
+      assert.ok(mid);
+      assert.equal((await fetch(base + `/materials/${mid}`)).status, 404);
+      assert.equal(
+        (await fetch(base + `/materials/${mid}`, { headers: { Cookie: cb } }))
+          .status,
+        404,
+      );
+      assert.equal(
+        await (
+          await fetch(base + `/materials/${mid}`, { headers: { Cookie: ca } })
+        ).text(),
+        "x,y\n1,2",
+      );
+      assert.equal(
+        (
+          await call(
+            "/api/works",
+            { ...full, body: { ...full.body, attachments: [mid] } },
+            cb,
+          )
+        ).status,
+        400,
+      );
+      assert.equal(
+        (await call(`/api/works/${wid}/submit`, {}, ca)).status,
+        200,
+      );
+      assert.equal(
+        (
+          await call(
+            `/api/works/${wid}/publish`,
+            {
+              revision: 2,
+              note: "Comprobación local de archivos públicos versionados.",
+            },
+            ca,
+          )
+        ).status,
+        200,
+      );
+      assert.equal(
+        await (await fetch(base + `/materials/${mid}`)).text(),
+        "x,y\n1,2",
+      );
+      assert.equal(
+        (await call(`/api/materials/${wid}?id=${mid}`, undefined, ca, "DELETE"))
+          .status,
+        200,
+      );
+      assert.equal((await fetch(base + `/materials/${mid}`)).status, 200);
+      assert.equal(
+        (await call(`/api/works/${wid}/submit`, {}, ca)).status,
+        200,
+      );
+      assert.equal(
+        (
+          await call(
+            `/api/works/${wid}/publish`,
+            {
+              revision: 3,
+              note: "Nueva versión sin adjunto; la primera conserva sus materiales.",
+            },
+            ca,
+          )
+        ).status,
+        200,
+      );
+      assert.equal((await fetch(base + `/materials/${mid}`)).status, 200);
+      assert.equal(
+        (
+          await call(
+            `/api/works/${wid}/withdraw`,
+            { note: "Fin de prueba de materiales y control de retiro." },
+            ca,
+          )
+        ).status,
+        200,
+      );
+      assert.equal((await fetch(base + `/materials/${mid}`)).status, 404);
+    },
+  );
+  await t.test(
+    "cuatro idiomas, exportación traducida y citas originales",
+    async () => {
+      const demo = "demo-simpson-mezclas";
+      for (const lang of ["es", "en", "pt", "fr"]) {
+        const prefix = lang === "es" ? "" : "/" + lang;
+        const home = await fetch(base + prefix + "/");
+        assert.equal(home.status, 200);
+        assert.equal(home.headers.get("content-language"), lang);
+        const page = await fetch(base + prefix + "/works/" + demo);
+        assert.equal(page.status, 200);
+        const html = await page.text();
+        assert.ok(html.includes('lang="' + lang + '"'));
+        const exported = await (
+          await fetch(base + prefix + "/works/" + demo + ".json")
+        ).json();
+        assert.equal(exported.version.body.language, "es");
+        if (lang !== "es") {
+          assert.equal(exported.reading_translation.language, lang);
+          assert.ok(
+            html.includes(
+              exported.reading_translation.title.replaceAll("&", "&amp;"),
+            ),
+          );
+          const md = await (
+            await fetch(base + prefix + "/works/" + demo + ".md")
+          ).text();
+          assert.ok(md.includes(exported.reading_translation.title));
+          assert.ok(md.includes(exported.version.hash));
+          const bib = await (
+            await fetch(base + prefix + "/works/" + demo + ".bib")
+          ).text();
+          assert.ok(bib.includes(exported.version.title));
+        }
+      }
+      const r = await call(`/api/works/${demo}/translation?lang=de`, {}, ca);
+      assert.equal(r.status, 400);
+      const privateId = (await call("/api/works", full, ca)).data.id;
+      assert.equal(
+        (await call(`/api/works/${privateId}/translation?lang=en`, {}, ca))
+          .status,
+        404,
+      );
+    },
+  );
   await t.test("logout invalida la sesión", async () => {
     assert.equal((await call("/api/logout", {}, cb)).status, 200);
     assert.equal((await call("/api/mine", undefined, cb, "GET")).status, 401);

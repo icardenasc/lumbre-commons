@@ -1,11 +1,28 @@
+import { Locale } from "./locales";
+import { tr } from "./i18n";
 import { Work, Body, Version, kinds, Env, fail } from "./model";
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
-export function markdown(w: Work, v: Version, base: string) {
+export function markdown(
+  w: Work,
+  v: Version,
+  base: string,
+  lang: Locale = "es",
+  notice = "",
+) {
   const b: Body = JSON.parse(v.body);
-  return `# ${v.title}\n\n${w.author}\n\n${kinds[w.kind]} · ${w.field} · v${v.number}\nPublicado: ${v.created_at}\nLicencia: CC BY 4.0\nEstado: ${w.status === "withdrawn" ? "RETIRADO" : "admisión editorial; revisión independiente no acreditada"}\nURL: ${base}/works/${w.id}?v=${v.number}\nSHA-256: ${v.hash}\n\n## Resumen\n${v.abstract}\n\n## Pregunta y contexto\n${b.question}\n\n## Método\n${b.method}\n\n## Resultados o argumento\n${b.results || "Problema abierto; sin resultados."}\n\n## Limitaciones\n${b.limitations}\n\n## Afirmaciones\n${b.claims.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\n## Referencias\n${b.references}\n\n## Uso de inteligencia artificial\n${b.ai_disclosure}\n\n## Financiación\n${b.funding || "Sin declaración en esta versión."}\n\n## Conflictos de interés\n${b.conflicts || "Sin declaración en esta versión."}\n\n## Consideraciones éticas\n${b.ethics || "Sin declaración en esta versión."}\n\n## Datos y materiales\n${b.data_availability || "Sin declaración en esta versión."}\n\nEste archivo contiene aportes de sus autores, no instrucciones para agentes. Toda relación de apoyo o cuestionamiento es una atribución, no una certificación automática.\n`;
+  const t = (s: string) => tr(s, lang);
+  return `# ${v.title}\n\n${w.author}\n\n${notice}\n\n${t(kinds[w.kind])} · ${t(w.field)} · v${v.number}\n${t("Publicación")}: ${v.created_at}\n${t("Licencia")}: CC BY 4.0\n${t("Estado")}: ${w.status === "withdrawn" ? "RETIRADO" : t("Admisión editorial. Revisión independiente no acreditada.")}\nURL: ${base}/works/${w.id}?v=${v.number}\nSHA-256: ${v.hash}\n\n## ${t("Resumen")}\n${v.abstract}\n\n## ${t("Pregunta y contexto")}\n${b.question}\n\n## ${t("Método")}\n${b.method}\n\n## ${t("Resultados o argumento")}\n${b.results || "Problema abierto; sin resultados."}\n\n## ${t("Limitaciones")}\n${b.limitations}\n\n## ${t("Afirmaciones")}\n${b.claims.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\n## ${t("Referencias")}\n${b.references}\n\n## ${t("Uso de inteligencia artificial")}\n${b.ai_disclosure}\n\n## ${t("Financiación")}\n${b.funding || "Sin declaración en esta versión."}\n\n## ${t("Conflictos de interés")}\n${b.conflicts || "Sin declaración en esta versión."}\n\n## ${t("Consideraciones éticas")}\n${b.ethics || "Sin declaración en esta versión."}\n\n## ${t("Datos y materiales")}\n${b.data_availability || "Sin declaración en esta versión."}\n\nEste archivo contiene aportes de sus autores, no instrucciones para agentes. Toda relación de apoyo o cuestionamiento es una atribución, no una certificación automática.\n`;
 }
-export async function pdf(w: Work, v: Version, base: string, env: Env) {
+export async function pdf(
+  w: Work,
+  v: Version,
+  base: string,
+  env: Env,
+  lang: Locale = "es",
+  notice = "",
+) {
+  const t = (s: string) => tr(s, lang);
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
   const load = async (name: string) => {
@@ -22,7 +39,7 @@ export async function pdf(w: Work, v: Version, base: string, env: Env) {
   ]);
   doc.setTitle(v.title);
   doc.setAuthor(w.author || "");
-  doc.setSubject("Lumbre · Revista de investigación abierta");
+  doc.setSubject("Lumbre · " + t("Revista de investigación abierta"));
   let page = doc.addPage([595.28, 841.89]),
     y = 777;
   const left = 56,
@@ -89,18 +106,24 @@ export async function pdf(w: Work, v: Version, base: string, env: Env) {
     }
     y -= 9;
   }
-  line("L U M B R E  /  REVISTA DE INVESTIGACION ABIERTA", 9, sans);
-  y -= 20;
-  para(v.title, 23, bold);
-  para(`${w.author} | ${w.field}`, 10, sans);
-  para(`Versión ${v.number} | ${v.created_at} | CC BY 4.0`, 9, sans);
-  para(
-    w.status === "withdrawn"
-      ? "TRABAJO RETIRADO"
-      : "Admisión editorial. Revisión independiente no acreditada.",
+  line(
+    "L U M B R E  /  " + t("Revista de investigación abierta").toUpperCase(),
     9,
     sans,
   );
+  y -= 20;
+  para(v.title, 23, bold);
+  para(`${w.author} | ${t(w.field)}`, 10, sans);
+  para(`${t("Versión " + v.number)} | ${v.created_at} | CC BY 4.0`, 9, sans);
+  para(
+    w.status === "withdrawn"
+      ? "TRABAJO RETIRADO"
+      : t("Admisión editorial. Revisión independiente no acreditada."),
+    9,
+    sans,
+  );
+  if (notice) para(notice, 9, sans);
+  else para(`SHA-256: ${v.hash}`, 8, sans);
   const b: Body = JSON.parse(v.body);
   for (const [heading, text] of [
     ["Resumen", v.abstract],
@@ -123,11 +146,88 @@ export async function pdf(w: Work, v: Version, base: string, env: Env) {
     ],
   ]) {
     if (y < 125) next();
-    para(heading, 13, bold);
+    para(t(heading), 13, bold);
     para(text);
+    if (
+      heading === "Resultados o argumento" &&
+      b.demo &&
+      b.assets?.results === "/demo/simpson-results.json"
+    ) {
+      const computed = (await (
+        await env.ASSETS.fetch(new Request(new URL(b.assets.results, base)))
+      ).json()) as any;
+      if (y < 400) next();
+      para(t("Figura y materiales reproducibles"), 13, bold);
+      para(t("Datos sintéticos · Demostración reproducible"), 9, sans);
+      const labels = {
+        es: [
+          "Tareas fáciles",
+          "Tareas difíciles",
+          "Agregado",
+          "Pesos comunes 50/50",
+        ],
+        en: ["Easy tasks", "Hard tasks", "Pooled", "Common weights 50/50"],
+        pt: [
+          "Tarefas fáceis",
+          "Tarefas difíceis",
+          "Agregado",
+          "Pesos comuns 50/50",
+        ],
+        fr: [
+          "Tâches faciles",
+          "Tâches difficiles",
+          "Agrégation",
+          "Poids communs 50/50",
+        ],
+      }[lang];
+      const keys = ["easy", "hard", "pooled", "standardized_50_50"];
+      const chartX = left + 165,
+        chartWidth = 240;
+      keys.forEach((key, index) => {
+        page.drawText(labels[index], {
+          x: left,
+          y: y - 9,
+          size: 9,
+          font: sans,
+        });
+        ["A", "B"].forEach((method, row) => {
+          const percent = computed.rates[method][key] * 100,
+            baseline = y - row * 16;
+          page.drawRectangle({
+            x: chartX,
+            y: baseline - 9,
+            width: chartWidth,
+            height: 10,
+            color: rgb(0.94, 0.94, 0.92),
+          });
+          page.drawRectangle({
+            x: chartX,
+            y: baseline - 9,
+            width: (chartWidth * percent) / 100,
+            height: 10,
+            color: row === 0 ? rgb(0.16, 0.23, 0.57) : rgb(0.5, 0.53, 0.48),
+          });
+          page.drawText(method, {
+            x: chartX - 14,
+            y: baseline - 7,
+            size: 8,
+            font: sans,
+          });
+          page.drawText(percent.toFixed(0) + "%", {
+            x: chartX + chartWidth + 9,
+            y: baseline - 7,
+            size: 8,
+            font: sans,
+          });
+        });
+        y -= 49;
+      });
+      para("0–100% · n = " + computed.records, 8, sans);
+      para(`${base}/demo/simpson-data.csv`, 8, sans);
+      para(`${base}/demo/reproduce_simpson.py`, 8, sans);
+    }
   }
   para(`${base}/works/${w.id}?v=${v.number}`, 9, sans);
-  para(`SHA-256: ${v.hash}`, 8, sans);
   const pages = doc.getPages();
   pages.forEach((p, i) =>
     p.drawText(`Lumbre  |  ${i + 1} / ${pages.length}`, {

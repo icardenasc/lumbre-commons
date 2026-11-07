@@ -101,6 +101,93 @@ results.push({
 });
 if (cross.status !== 403) throw Error("Origin gate failed");
 await check("Unknown route", "/missing-page-qa", 404);
+for (const lang of ["en", "pt", "fr"]) {
+  for (const route of [
+    "",
+    "/explore",
+    "/problems",
+    "/journal",
+    "/authors",
+    "/editorial",
+    "/privacy",
+    "/login",
+    "/register",
+  ]) {
+    const x = await check(
+      `Locale ${lang} ${route || "home"}`,
+      "/" + lang + route,
+    );
+    if (
+      x.r.headers.get("content-language") !== lang ||
+      !x.text.includes(`lang="${lang}"`)
+    )
+      throw Error("Incorrect document language");
+  }
+  await check(
+    `Localized manuscript guide ${lang}`,
+    `/${lang}/manuscript-template.md`,
+  );
+  for (const demo of [
+    "demo-simpson-mezclas",
+    "demo-trazabilidad-ia",
+    "demo-simpson-interpretacion",
+  ]) {
+    const x = await check(
+      `Translated article ${lang} ${demo}`,
+      `/${lang}/works/${demo}.json`,
+    );
+    const j = JSON.parse(x.text);
+    if (
+      j.reading_translation?.language !== lang ||
+      j.version.body.language !== "es"
+    )
+      throw Error("Translation provenance missing");
+    await check(
+      `Translated reading ${lang} ${demo}`,
+      `/${lang}/works/${demo}`,
+      200,
+      "data-content",
+    );
+    await check(
+      `Translated Markdown ${lang} ${demo}`,
+      `/${lang}/works/${demo}.md`,
+      200,
+      j.reading_translation.title,
+    );
+  }
+}
+for (const asset of [
+  "simpson-es.svg",
+  "simpson-en.svg",
+  "simpson-pt.svg",
+  "simpson-fr.svg",
+  "simpson-data.csv",
+  "reproduce_simpson.py",
+  "simpson-results.json",
+  "traceability-manifest.json",
+])
+  await check("Research asset " + asset, "/demo/" + asset);
+const translatedSearch = await check(
+  "Search translated titles",
+  "/api/works?q=" + encodeURIComponent("Beyond"),
+);
+if (
+  !JSON.parse(translatedSearch.text).works.some(
+    (w) => w.id === "demo-trazabilidad-ia",
+  )
+)
+  throw Error("Multilingual search failed");
+const linked = await check(
+  "Version-linked demonstration response",
+  "/api/works/demo-simpson-mezclas?v=1",
+);
+if (
+  !JSON.parse(linked.text).edges.some(
+    (e) =>
+      e.source_id === "demo-simpson-interpretacion" && e.target_version === 1,
+  )
+)
+  throw Error("Demo response missing");
 const report = {
   checked_at: new Date().toISOString(),
   base,

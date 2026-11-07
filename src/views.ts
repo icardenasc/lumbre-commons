@@ -14,9 +14,13 @@ import {
 } from "./model";
 import { publicWorks, publicDetail } from "./worker";
 import { journalHome, editorialPages, publicationRow } from "./journal";
-const date = (s: string) =>
+import { Locale, languages, localizedPath } from "./locales";
+import { readingVersion, localizedWorks, sourceLanguage } from "./translations";
+import { tr } from "./i18n";
+import { attachedMaterials } from "./materials";
+const date = (s: string, lang: Locale = "es") =>
   new Date(s.includes("T") ? s : s.replace(" ", "T") + "Z").toLocaleDateString(
-    "es-CO",
+    lang,
     {
       year: "numeric",
       month: "short",
@@ -62,7 +66,7 @@ function shell(
   );
 }
 function card(w: Work) {
-  return `<article class="card"><div class="card-top">${tag(w)}<span class="muted">${e(w.field)}</span></div><h3 class="card-title"><a href="/works/${e(w.id)}">${e(w.title)}</a></h3><p class="card-abstract">${e(w.abstract.slice(0, 220))}${w.abstract.length > 220 ? "…" : ""}</p><div class="card-meta"><span class="avatar">${e((w.author || "L").slice(0, 1))}</span><a href="/people/${e(w.username)}">${e(w.author)}</a><span class="muted">v${w.published_version}</span></div></article>`;
+  return `<article class="card"><div class="card-top">${tag(w)}<span class="muted">${e(w.field)}</span></div><h3 class="card-title" data-content><a href="/works/${e(w.id)}">${e(w.title)}</a></h3><p class="card-abstract" data-content>${e(w.abstract.slice(0, 220))}${w.abstract.length > 220 ? "…" : ""}</p><div class="card-meta"><span class="avatar">${e((w.author || "L").slice(0, 1))}</span><a href="/people/${e(w.username)}">${e(w.author)}</a><span class="muted">v${w.published_version}</span></div></article>`;
 }
 function cards(
   ws: Work[],
@@ -75,7 +79,7 @@ function cards(
 function textBlock(text: string) {
   return text
     .split(/\n\s*\n/)
-    .map((p) => `<p>${e(p).replace(/\n/g, "<br>")}</p>`)
+    .map((p) => `<p data-content>${e(p).replace(/\n/g, "<br>")}</p>`)
     .join("");
 }
 function references(s: string) {
@@ -91,7 +95,7 @@ function references(s: string) {
           `<a href="${e(m[0])}" target="_blank" rel="noopener noreferrer nofollow">${e(m[0])}</a>`;
         last = m.index! + m[0].length;
       }
-      return `<p>${html + e(line.slice(last))}</p>`;
+      return `<p data-content>${html + e(line.slice(last))}</p>`;
     })
     .join("");
 }
@@ -108,7 +112,12 @@ function input(
 function area(name: string, label: string, value = "", help = "", rows = 5) {
   return `<div class="field full"><label for="${name}">${label}</label>${help ? `<p class="muted">${help}</p>` : ""}<textarea id="${name}" name="${name}" rows="${rows}" maxlength="${({ abstract: 3000, question: 8000, method: 12000, results: 18000, limitations: 6000, references: 10000, ai_disclosure: 2000, funding: 3000, conflicts: 3000, ethics: 3000, data_availability: 3000, claims: 4808 } as Record<string, number>)[name] || 10000}">${e(value)}</textarea></div>`;
 }
-function manuscriptForm(w: Work | null, b: Body | null, target: any) {
+function manuscriptForm(
+  w: Work | null,
+  b: Body | null,
+  target: any,
+  lang: Locale = "es",
+) {
   const body = b || {
       question: "",
       method: "",
@@ -122,7 +131,7 @@ function manuscriptForm(w: Work | null, b: Body | null, target: any) {
       ai_consent: false,
     },
     kind = w?.kind || (target ? "response" : "article");
-  return `<form id="work-form" data-work-id="${e(w?.id || "")}" data-revision="${w?.draft_revision || 0}" class="panel"><div class="form-grid"><div class="field"><label for="kind">Tipo de aporte</label><select name="kind" id="kind">${Object.entries(
+  return `<form id="work-form" data-attachments="${e(JSON.stringify(body.attachments || []))}" data-work-id="${e(w?.id || "")}" data-revision="${w?.draft_revision || 0}" class="panel"><div class="form-grid"><div class="field"><label for="kind">Tipo de aporte</label><select name="kind" id="kind">${Object.entries(
     kinds,
   )
     .map(
@@ -131,7 +140,16 @@ function manuscriptForm(w: Work | null, b: Body | null, target: any) {
     )
     .join(
       "",
-    )}</select></div><div class="field"><label for="field">Disciplina</label><select name="field" id="field">${fields.map((f) => `<option ${f === w?.field ? "selected" : ""}>${f}</option>`).join("")}</select></div><div class="field full"><label for="title">Título</label><input id="title" name="title" value="${e(w?.title || "")}" minlength="8" maxlength="240" placeholder="La pregunta o idea que quieres compartir" required></div>${area("abstract", "Resumen", w?.abstract || "", "Explica qué aportas y por qué merece discutirse.", 4)}${
+    )}</select></div><div class="field"><label for="field">Disciplina</label><select name="field" id="field">${fields.map((f) => `<option value="${e(f)}" ${f === w?.field ? "selected" : ""}>${f}</option>`).join("")}</select></div><div class="field"><label for="language">Idioma del manuscrito</label><select id="language" name="language">${Object.entries(
+    languages,
+  )
+    .map(
+      ([l, label]) =>
+        `<option value="${l}" ${l === (b?.language || lang) ? "selected" : ""}>${label}</option>`,
+    )
+    .join(
+      "",
+    )}</select></div><div class="field full"><label for="title">Título</label><input id="title" name="title" value="${e(w?.title || "")}" minlength="8" maxlength="240" placeholder="La pregunta o idea que quieres compartir" required></div>${area("abstract", "Resumen", w?.abstract || "", "Explica qué aportas y por qué merece discutirse.", 4)}${
     target
       ? `<div class="notice full">Tu aporte se vinculará a <a href="/works/${e(target.id)}?v=${target.version}">${e(target.title)} · v${target.version}</a>. La relación aparecerá en ambas publicaciones.<input type="hidden" name="target_id" value="${e(target.id)}"><input type="hidden" name="target_version" value="${target.version}"></div><div class="field"><label for="relation">Relación con el trabajo</label><select id="relation" name="relation">${Object.entries(
           relations,
@@ -188,12 +206,16 @@ export async function render(
   env: Env,
   url: URL,
   u: User | null,
+  lang: Locale = "es",
 ): Promise<Response> {
   const path = url.pathname;
   if (path === "/")
     return shell(
       "Revista de investigación abierta",
-      journalHome(await publicWorks(env)),
+      journalHome(
+        await localizedWorks(env, await publicWorks(env), lang),
+        lang,
+      ),
       u,
       path,
     );
@@ -222,14 +244,18 @@ export async function render(
         path === "/problems" ? "problem" : url.searchParams.get("kind") || "",
       q = url.searchParams.get("q") || "",
       field = url.searchParams.get("field") || "";
-    let works = await publicWorks(env, q, kind, field);
+    let works = await localizedWorks(
+      env,
+      await publicWorks(env, q, kind, field),
+      lang,
+    );
     const title =
       path === "/problems"
         ? "Lo que todavía no sabemos."
         : "El archivo de Lumbre.";
     return shell(
       title,
-      `<div class="container"><div class="page-heading"><p class="eyebrow">${path === "/problems" ? "PREGUNTAS DE INVESTIGACIÓN" : "PUBLICACIONES / ACCESO ABIERTO"}</p><h1 class="section-title">${title}</h1><p class="hero-copy">${path === "/problems" ? "Problemas delimitados, antecedentes y caminos por explorar. Una invitación a investigar en común." : "Artículos, propuestas metodológicas y debate. Cada publicación conserva su autoría, versiones y estado editorial."}</p></div><form class="search-form toolbar" method="get">${kind && path === "/explore" ? `<input type="hidden" name="kind" value="${e(kind)}">` : ""}<label class="sr-only" for="q">Buscar conocimiento</label><input class="search-input" id="q" name="q" value="${e(q)}" placeholder="Buscar por título, pregunta o tema"><label class="sr-only" for="filter-field">Disciplina</label><select id="filter-field" name="field"><option value="">Todas las disciplinas</option>${fields.map((f) => `<option ${field === f ? "selected" : ""}>${f}</option>`).join("")}</select><button class="button secondary">Buscar</button></form>${
+      `<div class="container"><div class="page-heading"><p class="eyebrow">${path === "/problems" ? "PREGUNTAS DE INVESTIGACIÓN" : "PUBLICACIONES / ACCESO ABIERTO"}</p><h1 class="section-title">${title}</h1><p class="hero-copy">${path === "/problems" ? "Problemas delimitados, antecedentes y caminos por explorar. Una invitación a investigar en común." : "Artículos, propuestas metodológicas y debate. Cada publicación conserva su autoría, versiones y estado editorial."}</p></div><form class="search-form toolbar" method="get">${kind && path === "/explore" ? `<input type="hidden" name="kind" value="${e(kind)}">` : ""}<label class="sr-only" for="q">Buscar conocimiento</label><input class="search-input" id="q" name="q" value="${e(q)}" placeholder="Buscar por título, pregunta o tema"><label class="sr-only" for="filter-field">Disciplina</label><select id="filter-field" name="field"><option value="">Todas las disciplinas</option>${fields.map((f) => `<option value="${e(f)}" ${field === f ? "selected" : ""}>${f}</option>`).join("")}</select><button class="button secondary">Buscar</button></form>${
         path === "/explore"
           ? `<nav class="tabs" aria-label="Tipo de aporte"><a class="tab ${!kind ? "active" : ""}" href="/explore?${e(new URLSearchParams({ q, field }).toString())}">Todo</a>${Object.entries(
               kinds,
@@ -355,6 +381,7 @@ export async function render(
             .all()
         ).results
       : [];
+    const draftMaterials = id ? await attachedMaterials(env, w!, b!) : [];
     const editor = path.startsWith("/editor/");
     const locked = w?.status === "submitted" || w?.status === "withdrawn";
     const content =
@@ -375,10 +402,10 @@ export async function render(
             .join(
               "",
             )}<h3>Afirmaciones</h3><ol>${b!.claims.map((x) => `<li>${e(x)}</li>`).join("")}</ol></div>`
-        : manuscriptForm(w, b, target);
+        : manuscriptForm(w, b, target, lang);
     return shell(
       editor ? "Revisar manuscrito" : id ? "Tu manuscrito" : "Nuevo manuscrito",
-      `<div class="container narrow"><div class="page-heading"><p class="eyebrow">${editor ? "MESA EDITORIAL" : "ENVÍO DE MANUSCRITOS"}</p><h1 class="section-title">${editor ? "Leer. Evaluar. Documentar." : id ? "Tu manuscrito." : "Prepara tu manuscrito."}</h1><p class="muted">${editor ? "Verifica fuentes, autoría, método, límites y posibles conflictos antes de decidir." : locked ? "El envío está en revisión editorial. La versión enviada se conserva sin cambios." : "El rigor comienza con una pregunta clara y un método que otros puedan seguir."}</p></div>${w?.editor_note ? `<div class="notice"><strong>Nota editorial</strong><p>${e(w.editor_note)}</p></div>` : ""}${content}${id ? `<section class="panel"><h2>Evaluación metodológica con IA</h2><p>Una lectura adicional del manuscrito. Sus observaciones son separadas de la decisión editorial.</p>${reviewCards(reviewRows)}${env.AI_ENABLED === "true" ? `<div class="form-actions">${env.OPENAI_API_KEY ? `<button class="button secondary" data-ai="openai" data-id="${id}">Evaluar con OpenAI</button>` : ""}${env.ANTHROPIC_API_KEY ? `<button class="button secondary" data-ai="anthropic" data-id="${id}">Evaluar con Anthropic</button>` : ""}</div>` : '<p class="muted">La evaluación automática aún no está activada. Puedes continuar con el envío editorial.</p>'}</section>${editor && w!.status === "submitted" ? `<form id="decision-form" class="panel" data-id="${id}" data-revision="${w!.draft_revision}"><h2>Decisión editorial</h2>${area("note", "Motivación de la decisión", "", "Explica los controles realizados y los cambios necesarios.", 4)}<label class="check-label"><input type="checkbox" name="collection"> Destacar en la selección editorial</label><div class="form-actions"><button class="button primary" name="decision" value="publish">Autorizar publicación</button><button class="button secondary" name="decision" value="return">Solicitar cambios</button></div><p class="muted">Esta decisión no concede sello de revisión por pares ni indexación.</p></form>` : !locked && !editor ? `<div class="panel"><h2>¿Listo para compartir?</h2><p>Guarda tus cambios y envía el manuscrito. El equipo editorial revisará su admisibilidad antes de publicarlo.</p><button class="button primary" data-submit="${id}">Enviar a revisión editorial</button></div>` : ""}` : ""}</div>`,
+      `<div class="container narrow"><div class="page-heading"><p class="eyebrow">${editor ? "MESA EDITORIAL" : "ENVÍO DE MANUSCRITOS"}</p><h1 class="section-title">${editor ? "Leer. Evaluar. Documentar." : id ? "Tu manuscrito." : "Prepara tu manuscrito."}</h1><p class="muted">${editor ? "Verifica fuentes, autoría, método, límites y posibles conflictos antes de decidir." : locked ? "El envío está en revisión editorial. La versión enviada se conserva sin cambios." : "El rigor comienza con una pregunta clara y un método que otros puedan seguir."}</p></div>${w?.editor_note ? `<div class="notice"><strong>Nota editorial</strong><p>${e(w.editor_note)}</p></div>` : ""}${content}${id ? `<section class="panel materials-panel"><h2>Materiales de investigación</h2><p>Adjunta figuras, datos, código o documentos. Los archivos del borrador son privados y se hacen accesibles al publicar la versión.</p>${draftMaterials.map((m) => `<div class="material-row"><a data-content href="/materials/${e(m.id)}">${e(m.filename)}</a><span>${Math.ceil(m.size / 1024)} KB</span>${!editor && !locked ? `<button class="button secondary small" data-detach="${e(m.id)}" data-work="${id}">Quitar del borrador</button>` : ""}</div>`).join("")}${!editor && !locked ? `<form id="material-form" data-work="${id}"><label for="research-file">Archivo (máximo 5 MB)</label><input id="research-file" type="file" accept=".png,.jpg,.jpeg,.pdf,.csv,.json,.txt,.md,.py" required><p class="muted">PNG, JPG, PDF, CSV, JSON, TXT, MD o PY. Hasta ocho archivos por versión.</p><button class="button secondary" type="submit">Adjuntar archivo</button></form>` : ""}</section>` : ""}${id ? `<section class="panel"><h2>Evaluación metodológica con IA</h2><p>Una lectura adicional del manuscrito. Sus observaciones son separadas de la decisión editorial.</p>${reviewCards(reviewRows)}${env.AI_ENABLED === "true" ? `<div class="form-actions">${env.OPENAI_API_KEY ? `<button class="button secondary" data-ai="openai" data-id="${id}">Evaluar con OpenAI</button>` : ""}${env.ANTHROPIC_API_KEY ? `<button class="button secondary" data-ai="anthropic" data-id="${id}">Evaluar con Anthropic</button>` : ""}</div>` : '<p class="muted">La evaluación automática aún no está activada. Puedes continuar con el envío editorial.</p>'}</section>${editor && w!.status === "submitted" ? `<form id="decision-form" class="panel" data-id="${id}" data-revision="${w!.draft_revision}"><h2>Decisión editorial</h2>${area("note", "Motivación de la decisión", "", "Explica los controles realizados y los cambios necesarios.", 4)}<label class="check-label"><input type="checkbox" name="collection"> Destacar en la selección editorial</label><div class="form-actions"><button class="button primary" name="decision" value="publish">Autorizar publicación</button><button class="button secondary" name="decision" value="return">Solicitar cambios</button></div><p class="muted">Esta decisión no concede sello de revisión por pares ni indexación.</p></form>` : !locked && !editor ? `<div class="panel"><h2>¿Listo para compartir?</h2><p>Guarda tus cambios y envía el manuscrito. El equipo editorial revisará su admisibilidad antes de publicarlo.</p><button class="button primary" data-submit="${id}">Enviar a revisión editorial</button></div>` : ""}` : ""}</div>`,
       u,
       path,
       '<meta name="robots" content="noindex">',
@@ -386,19 +413,38 @@ export async function render(
   }
   if (path.startsWith("/works/")) {
     const id = path.split("/")[2],
-      { w, v } = await publicDetail(
+      original = await publicDetail(
         env,
         id,
         url.searchParams.has("v")
           ? Number(url.searchParams.get("v"))
           : undefined,
       ),
-      b: Body = JSON.parse(v.body);
+      { w, v, translation } = await readingVersion(
+        env,
+        original.w,
+        original.v,
+        lang,
+      ),
+      b: Body = JSON.parse(v.body),
+      originalLanguage = sourceLanguage(original.v.body);
+    const readingNotice =
+      `<div class="article-language"><span>${e(tr("Ver esta versión en otro idioma", lang))}</span><div>${Object.entries(
+        languages,
+      )
+        .map(
+          ([l, label]) =>
+            `<a data-locale-link href="${localizedPath("/works/" + id, l as Locale)}?v=${v.number}" ${l === lang ? 'aria-current="true"' : ""}>${label}</a>`,
+        )
+        .join("")}</div></div>` +
+      (originalLanguage !== lang
+        ? `<div class="translation-notice"><strong>${e(tr("Traducción de lectura", lang))}</strong><p>${e(tr(translation?.status === "ready" ? "Esta traducción ayuda a leer el trabajo. No reemplaza la versión original ni implica revisión científica." : "El contenido mostrado aún está en su idioma original.", lang))}</p>${translation?.status === "ready" ? `<p class="muted" data-content>${e(translation.provider)} · ${e(tr("Las referencias y los identificadores se conservan en su forma original.", lang))}</p>` : `<button class="button secondary small" data-translate="${e(id)}" data-target="${lang}" data-version="${v.number}" data-auto="true">${e(tr("Traducir esta versión", lang))}</button><p id="translation-progress" role="status"></p>`}<a data-locale-link href="${localizedPath("/works/" + id, originalLanguage)}?v=${v.number}">${e(tr("Volver al original", lang))} →</a></div>`
+        : "");
     const edges = (
       await env.DB.prepare(
-        "SELECT e.*,s.owner_id AS source_owner,t.owner_id AS target_owner,sv.title AS source_title,tv.title AS target_title FROM edges e JOIN works s ON s.id=e.source_id JOIN works t ON t.id=e.target_id JOIN versions sv ON sv.work_id=e.source_id AND sv.number=e.source_version JOIN versions tv ON tv.work_id=e.target_id AND tv.number=e.target_version WHERE ((e.source_id=? AND e.source_version=?) OR (e.target_id=? AND e.target_version=?)) AND s.status!='withdrawn' AND t.status!='withdrawn' ORDER BY e.created_at DESC LIMIT 100",
+        "SELECT e.*,s.owner_id AS source_owner,t.owner_id AS target_owner,COALESCE((SELECT json_extract(tr.translated,'$.title') FROM translations tr WHERE tr.work_id=e.source_id AND tr.version=e.source_version AND tr.content_hash=sv.hash AND tr.target_language=? AND tr.status='ready'),sv.title) AS source_title,COALESCE((SELECT json_extract(tr.translated,'$.title') FROM translations tr WHERE tr.work_id=e.target_id AND tr.version=e.target_version AND tr.content_hash=tv.hash AND tr.target_language=? AND tr.status='ready'),tv.title) AS target_title FROM edges e JOIN works s ON s.id=e.source_id JOIN works t ON t.id=e.target_id JOIN versions sv ON sv.work_id=e.source_id AND sv.number=e.source_version JOIN versions tv ON tv.work_id=e.target_id AND tv.number=e.target_version WHERE ((e.source_id=? AND e.source_version=?) OR (e.target_id=? AND e.target_version=?)) AND s.status!='withdrawn' AND t.status!='withdrawn' ORDER BY e.created_at DESC LIMIT 100",
       )
-        .bind(id, v.number, id, v.number)
+        .bind(lang, lang, id, v.number, id, v.number)
         .all<any>()
     ).results;
     const reviews = (
@@ -415,10 +461,11 @@ export async function render(
         .bind(id)
         .all<any>()
     ).results;
-    const meta = `<link rel="canonical" href="${env.APP_URL}/works/${id}"><meta name="citation_title" content="${e(v.title)}"><meta name="citation_author" content="${e(w.author)}"><meta name="citation_publication_date" content="${v.created_at.slice(0, 10).replace(/-/g, "/")}"><meta name="citation_pdf_url" content="${env.APP_URL}/works/${id}.pdf?v=${v.number}"><meta name="citation_language" content="es"><meta name="citation_journal_title" content="Lumbre"><meta name="citation_abstract_html_url" content="${env.APP_URL}/works/${id}?v=${v.number}"><meta property="og:title" content="${e(v.title)}"><meta property="og:description" content="${e(v.abstract.slice(0, 300))}"><meta property="og:type" content="article">${w.status === "withdrawn" ? '<meta name="robots" content="noindex">' : ""}`;
+    const materials = await attachedMaterials(env, w, b);
+    const meta = `<link rel="canonical" href="${env.APP_URL}${localizedPath("/works/" + id, lang)}?v=${v.number}"><meta name="citation_title" content="${e(original.v.title)}"><meta name="citation_author" content="${e(w.author)}"><meta name="citation_publication_date" content="${v.created_at.slice(0, 10).replace(/-/g, "/")}"><meta name="citation_pdf_url" content="${env.APP_URL}/works/${id}.pdf?v=${v.number}"><meta name="citation_language" content="${originalLanguage}"><meta name="citation_journal_title" content="Lumbre"><meta name="citation_abstract_html_url" content="${env.APP_URL}/works/${id}?v=${v.number}"><meta property="og:title" content="${e(v.title)}"><meta property="og:description" content="${e(v.abstract.slice(0, 300))}"><meta property="og:type" content="article">${w.status === "withdrawn" || b.demo ? '<meta name="robots" content="noindex">' : ""}`;
     return shell(
       v.title,
-      `<div class="container"><div class="page-heading"><a class="text-link" href="/explore">← Publicaciones</a></div><div class="article-layout"><article class="article-main" id="article-text"><div class="card-top">${tag(w)}<span class="muted">${e(w.field)}</span></div><h1 class="paper-title">${e(v.title)}</h1><div class="card-meta"><span class="avatar">${e(w.author?.slice(0, 1))}</span><a href="/people/${e(w.username)}">${e(w.author)}</a><span>${date(v.created_at)}</span><span>v${v.number}</span></div>${w.status === "withdrawn" ? `<div class="notice error"><strong>Publicación retirada</strong><p>${e(w.editor_note)}</p><p>Se conserva el registro para mantener la trazabilidad.</p></div>` : ""}${v.number < w.published_version ? `<div class="notice">Estás leyendo una versión anterior. <a href="/works/${id}">Leer v${w.published_version}</a>.</div>` : ""}<div class="reading-toolbar"><button class="reader-toggle" id="reader-focus" aria-pressed="false">Modo lectura</button><button class="reader-toggle" id="reader-size" aria-pressed="false" aria-label="Aumentar tamaño de letra">A<span class="large-a">A</span></button><button class="reader-toggle" data-save-id="${e(id)}" data-save-title="${e(v.title)}" data-save-author="${e(w.author)}" aria-pressed="false">Guardar lectura ＋</button><span>${Math.max(1, Math.ceil((v.abstract + " " + b.question + " " + b.method + " " + b.results + " " + b.limitations).split(/\s+/).length / 220))} min de lectura</span><a class="reader-toggle" href="/works/${id}.pdf?v=${v.number}">PDF ↓</a></div><details class="mobile-toc"><summary>Contenido del artículo</summary><nav aria-label="Índice móvil"><a href="#abstract">Resumen</a><a href="#paper-section-0">Pregunta y contexto</a><a href="#paper-section-1">Método</a><a href="#paper-section-2">Resultados o argumento</a><a href="#paper-section-3">Limitaciones</a><a href="#references">Referencias</a><a href="#declarations">Declaraciones</a><a href="#discussion">Correspondencia y debate</a></nav></details><div class="prose article-prose"><h2 class="section-label" id="abstract">Resumen</h2><p class="paper-abstract">${e(v.abstract)}</p>${[
+      `<div class="container"><div class="page-heading"><a class="text-link" href="/explore">← Publicaciones</a></div><div class="article-layout"><article class="article-main" id="article-text"><div class="card-top">${tag(w)}<span class="muted">${e(w.field)}</span></div><h1 class="paper-title" data-content>${e(v.title)}</h1>${b.demo ? `<div class="demo-notice"><strong>Ejemplo editorial</strong><p>Artículo de demostración, sin revisión independiente. Los cálculos y los materiales enlazados pueden examinarse.</p></div>` : ""}${readingNotice}<div class="card-meta"><span class="avatar">${e(w.author?.slice(0, 1))}</span><a href="/people/${e(w.username)}">${e(w.author)}</a><span>${date(v.created_at, lang)}</span><span>v${v.number}</span></div>${w.status === "withdrawn" ? `<div class="notice error"><strong>Publicación retirada</strong><p>${e(w.editor_note)}</p><p>Se conserva el registro para mantener la trazabilidad.</p></div>` : ""}${v.number < w.published_version ? `<div class="notice">Estás leyendo una versión anterior. <a href="/works/${id}">Leer v${w.published_version}</a>.</div>` : ""}<div class="reading-toolbar"><button class="reader-toggle" id="reader-focus" aria-pressed="false">Modo lectura</button><button class="reader-toggle" id="reader-size" aria-pressed="false" aria-label="Aumentar tamaño de letra">A<span class="large-a">A</span></button><button class="reader-toggle" data-save-id="${e(id)}" data-save-title="${e(v.title)}" data-save-author="${e(w.author)}" aria-pressed="false">Guardar lectura ＋</button><span>${Math.max(1, Math.ceil((v.abstract + " " + b.question + " " + b.method + " " + b.results + " " + b.limitations).split(/\s+/).length / 220))} min de lectura</span><a class="reader-toggle" href="/works/${id}.pdf?v=${v.number}">PDF ↓</a></div><details class="mobile-toc"><summary>Contenido del artículo</summary><nav aria-label="Índice móvil"><a href="#abstract">Resumen</a><a href="#paper-section-0">Pregunta y contexto</a><a href="#paper-section-1">Método</a><a href="#paper-section-2">Resultados o argumento</a><a href="#paper-section-3">Limitaciones</a><a href="#references">Referencias</a><a href="#declarations">Declaraciones</a><a href="#discussion">Correspondencia y debate</a></nav></details><div class="prose article-prose"><h2 class="section-label" id="abstract">Resumen</h2><p class="paper-abstract" data-content>${e(v.abstract)}</p>${b.demo && b.assets ? `<section class="reproducible-materials"><h2>Figura y materiales reproducibles</h2>${b.assets.figure?.[lang] ? `<figure class="research-figure"><img src="${e(b.assets.figure[lang])}" alt="${e(tr("Datos sintéticos · Demostración reproducible", lang))}"><figcaption>${e(tr("Datos sintéticos · Demostración reproducible", lang))}</figcaption></figure>` : ""}<div class="research-materials">${b.assets.csv ? `<a href="${e(b.assets.csv)}" download>Descargar datos CSV ↓</a>` : ""}${b.assets.script ? `<a href="${e(b.assets.script)}" download>Código de reproducción ↓</a>` : ""}${b.assets.results ? `<a href="${e(b.assets.results)}" download>Resultados calculados ↓</a>` : ""}${b.assets.manifest ? `<a href="${e(b.assets.manifest)}" download>JSON · Manifest ↓</a>` : ""}</div></section>` : ""}${[
         ["Pregunta y contexto", b.question],
         ["Método", b.method],
         [
@@ -433,7 +480,7 @@ export async function render(
         )
         .join(
           "",
-        )}${b.claims.length ? `<h2 id="claims">Afirmaciones para discutir</h2>${b.claims.map((c, i) => `<div class="claim" id="claim-${i + 1}"><span class="claim-number">${String(i + 1).padStart(2, "0")}</span><p>${e(c)}</p></div>`).join("")}` : ""}<h2 id="references">Referencias</h2><div class="references-list">${references(b.references)}</div><h2 id="ai-disclosure">Declaración de uso de IA</h2>${textBlock(b.ai_disclosure)}<h2 id="declarations">Declaraciones del trabajo</h2><dl class="editorial-definitions">${[
+        )}${b.claims.length ? `<h2 id="claims">Afirmaciones para discutir</h2>${b.claims.map((c, i) => `<div class="claim" id="claim-${i + 1}"><span class="claim-number">${String(i + 1).padStart(2, "0")}</span><p data-content>${e(c)}</p></div>`).join("")}` : ""}${materials.length ? `<h2 id="materials">Materiales de investigación</h2>${materials.map((m) => `<div class="published-material">${m.mime.startsWith("image/") ? `<figure class="research-figure"><img src="/materials/${e(m.id)}" alt="${e(m.filename)}" loading="lazy"><figcaption data-content>${e(m.filename)}</figcaption></figure>` : ""}<a data-content href="/materials/${e(m.id)}">${e(m.filename)} ↓</a><p class="muted">${Math.ceil(m.size / 1024)} KB · SHA-256 <code>${e(m.sha256)}</code></p></div>`).join("")}` : ""}<h2 id="references">Referencias</h2><div class="references-list">${references(b.references)}</div><h2 id="ai-disclosure">Declaración de uso de IA</h2>${textBlock(b.ai_disclosure)}<h2 id="declarations">Declaraciones del trabajo</h2><dl class="editorial-definitions">${[
         ["Financiación", b.funding],
         ["Conflictos de interés", b.conflicts],
         ["Consideraciones éticas", b.ethics],
@@ -452,11 +499,11 @@ export async function render(
                 const outgoing = x.source_id === id,
                   other = outgoing ? x.target_id : x.source_id,
                   n = outgoing ? x.target_version : x.source_version;
-                return `<div class="related-item"><span class="badge ${x.relation === "challenges" ? "response" : ""}">${outgoing ? e(relations[x.relation]) : "Recibe un aporte: " + e(relations[x.relation])}</span><h3><a href="/works/${e(other)}?v=${n}">${e(outgoing ? x.target_title : x.source_title)}</a></h3><p class="muted">v${x.source_version} → v${x.target_version}${x.source_owner === x.target_owner ? " · Mismo responsable de autoría" : ""}</p>${x.target_claim ? `<blockquote>${e(x.target_claim)}</blockquote>` : ""}</div>`;
+                return `<div class="related-item"><span class="badge ${x.relation === "challenges" ? "response" : ""}">${outgoing ? e(tr(relations[x.relation], lang)) : e(tr("Recibe un aporte: ", lang)) + e(tr(relations[x.relation], lang))}</span><h3><a href="/works/${e(other)}?v=${n}">${e(outgoing ? x.target_title : x.source_title)}</a></h3><p class="muted">v${x.source_version} → v${x.target_version}${x.source_owner === x.target_owner ? " · " + tr("Mismo responsable de autoría", lang) : ""}</p>${x.target_claim ? `<blockquote data-content><span class="muted">${e(tr("Texto original", lang))}: </span>${e(x.target_claim)}</blockquote>` : ""}</div>`;
               })
               .join("")
           : "<p>Este aporte todavía no tiene respuestas enlazadas. Tu perspectiva puede ser la siguiente.</p>"
-      }${w.status !== "withdrawn" ? button("Enviar una respuesta ↗", `/submit?target=${id}&v=${v.number}`) : ""}${w.kind === "problem" && w.status !== "withdrawn" ? `<h2>Personas que quieren aportar</h2>${collabs.length ? collabs.map((c) => `<div class="related-item"><strong><a href="/people/${e(c.username)}">${e(c.name)}</a></strong><p>${e(c.contribution)}</p></div>`).join("") : "<p>Sé la primera persona en proponer una contribución.</p>"}<form id="collaborate-form" class="panel" data-id="${id}">${area("contribution", "¿Qué puedes aportar?", "", "Tu propuesta aparecerá públicamente con tu nombre.", 3)}<button class="button secondary">Sumarme al problema</button></form>` : ""}</div></article><aside class="article-side"><nav class="article-toc" aria-label="Índice del artículo"><p class="eyebrow">CONTENIDO</p><a href="#abstract">Resumen</a><a href="#paper-section-0">Pregunta y contexto</a><a href="#paper-section-1">Método</a><a href="#paper-section-2">Resultados o argumento</a><a href="#paper-section-3">Limitaciones</a>${b.claims.length ? `<a href="#claims">Afirmaciones</a>` : ""}<a href="#references">Referencias</a><a href="#ai-disclosure">Uso de IA</a><a href="#declarations">Declaraciones</a><a href="#assessments">Evaluaciones</a><a href="#discussion">Correspondencia</a></nav><div class="panel article-record"><p class="eyebrow">REGISTRO DE PUBLICACIÓN</p><div class="metadata"><div class="metadata-row"><span>Publicación</span><strong>${w.status === "withdrawn" ? "Retirada" : "Admisión editorial"}</strong></div><div class="metadata-row"><span>Revisión IA</span><strong>${reviews.length ? "Disponible" : "No ejecutada"}</strong></div><div class="metadata-row"><span>Revisión independiente</span><strong>No acreditada</strong></div><div class="metadata-row"><span>Licencia</span><a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></div>${w.kind === "problem" ? `<div class="metadata-row"><span>Problema</span><strong>${{ open: "Abierto", in_progress: "En progreso", resolved: "Resuelto por su autor" }[w.problem_state]}</strong></div>` : ""}</div><label for="version-select">Historial de versiones</label><select id="version-select" data-id="${id}">${Array.from({ length: w.published_version }, (_, i) => `<option value="${i + 1}" ${i + 1 === v.number ? "selected" : ""}>Versión ${i + 1}</option>`).join("")}</select><div class="form-actions">${button("Leer PDF ↗", `/works/${id}.pdf?v=${v.number}`, "primary small")}${button("Markdown", `/works/${id}.md?v=${v.number}`, "secondary small")}${button("BibTeX", `/works/${id}.bib?v=${v.number}`, "secondary small")}${button("RIS", `/works/${id}.ris?v=${v.number}`, "secondary small")}${button("JSON", `/works/${id}.json?v=${v.number}`, "secondary small")}</div><button class="button secondary small" data-copy="${e(`${w.author}. (${v.created_at.slice(0, 4)}). ${v.title} (v${v.number}). Lumbre. ${env.APP_URL}/works/${id}?v=${v.number}`)}">Copiar referencia</button><details><summary>Huella del contenido</summary><code class="code">${v.hash}</code><p class="muted">SHA-256 del título, resumen, tipo, disciplina y cuerpo estructurado. Identifica la versión; no certifica la verdad de sus resultados.</p></details></div>${u?.id === w.owner_id ? `<div class="panel">${button("Preparar nueva versión", `/workspace/${id}`, "secondary small")}${w.kind === "problem" ? `<form id="problem-state-form" data-id="${id}"><label for="state">Estado del problema</label><select id="state" name="state"><option value="open">Abierto</option><option value="in_progress">En progreso</option><option value="resolved">Resuelto por su autor</option></select>${area("note", "Motivo del cambio", "", "Vincula la evidencia que sustenta tu decisión.", 3)}<button class="button secondary small">Actualizar estado</button></form>` : ""}</div>` : ""}${u?.role === "editor" && w.status !== "withdrawn" ? `<details class="panel"><summary>Actuación editorial</summary><form id="withdraw-form" data-id="${id}">${area("note", "Motivo del retiro", "", "El motivo quedará visible en la ficha.", 3)}<button class="button danger small">Retirar publicación</button></form></details>` : ""}</aside></div></div>`,
+      }${w.status !== "withdrawn" ? button("Enviar una respuesta ↗", `/submit?target=${id}&v=${v.number}`) : ""}${w.kind === "problem" && w.status !== "withdrawn" ? `<h2>Personas que quieren aportar</h2>${collabs.length ? collabs.map((c) => `<div class="related-item"><strong><a href="/people/${e(c.username)}">${e(c.name)}</a></strong><p>${e(c.contribution)}</p></div>`).join("") : "<p>Sé la primera persona en proponer una contribución.</p>"}<form id="collaborate-form" class="panel" data-id="${id}">${area("contribution", "¿Qué puedes aportar?", "", "Tu propuesta aparecerá públicamente con tu nombre.", 3)}<button class="button secondary">Sumarme al problema</button></form>` : ""}</div></article><aside class="article-side"><nav class="article-toc" aria-label="Índice del artículo"><p class="eyebrow">CONTENIDO</p><a href="#abstract">Resumen</a><a href="#paper-section-0">Pregunta y contexto</a><a href="#paper-section-1">Método</a><a href="#paper-section-2">Resultados o argumento</a><a href="#paper-section-3">Limitaciones</a>${b.claims.length ? `<a href="#claims">Afirmaciones</a>` : ""}<a href="#references">Referencias</a><a href="#ai-disclosure">Uso de IA</a><a href="#declarations">Declaraciones</a><a href="#assessments">Evaluaciones</a><a href="#discussion">Correspondencia</a></nav><div class="panel article-record"><p class="eyebrow">REGISTRO DE PUBLICACIÓN</p><div class="metadata"><div class="metadata-row"><span>Publicación</span><strong>${w.status === "withdrawn" ? "Retirada" : "Admisión editorial"}</strong></div><div class="metadata-row"><span>Revisión IA</span><strong>${reviews.length ? "Disponible" : "No ejecutada"}</strong></div><div class="metadata-row"><span>Revisión independiente</span><strong>No acreditada</strong></div><div class="metadata-row"><span>Licencia</span><a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></div>${w.kind === "problem" ? `<div class="metadata-row"><span>Problema</span><strong>${{ open: "Abierto", in_progress: "En progreso", resolved: "Resuelto por su autor" }[w.problem_state]}</strong></div>` : ""}</div><label for="version-select">Historial de versiones</label><select id="version-select" data-id="${id}">${Array.from({ length: w.published_version }, (_, i) => `<option value="${i + 1}" ${i + 1 === v.number ? "selected" : ""}>Versión ${i + 1}</option>`).join("")}</select><div class="form-actions">${button("Leer PDF ↗", `/works/${id}.pdf?v=${v.number}`, "primary small")}${button("Markdown", `/works/${id}.md?v=${v.number}`, "secondary small")}${button("BibTeX", `/works/${id}.bib?v=${v.number}`, "secondary small")}${button("RIS", `/works/${id}.ris?v=${v.number}`, "secondary small")}${button("JSON", `/works/${id}.json?v=${v.number}`, "secondary small")}</div><button class="button secondary small" data-copy="${e(`${w.author}. (${v.created_at.slice(0, 4)}). ${original.v.title} (v${v.number}). Lumbre. ${env.APP_URL}/works/${id}?v=${v.number}`)}">Copiar referencia</button><details><summary>Huella del contenido</summary><code class="code">${v.hash}</code><p class="muted">SHA-256 del título, resumen, tipo, disciplina y cuerpo estructurado. Identifica la versión; no certifica la verdad de sus resultados.</p></details></div>${u?.id === w.owner_id ? `<div class="panel">${button("Preparar nueva versión", `/workspace/${id}`, "secondary small")}${w.kind === "problem" ? `<form id="problem-state-form" data-id="${id}"><label for="state">Estado del problema</label><select id="state" name="state"><option value="open">Abierto</option><option value="in_progress">En progreso</option><option value="resolved">Resuelto por su autor</option></select>${area("note", "Motivo del cambio", "", "Vincula la evidencia que sustenta tu decisión.", 3)}<button class="button secondary small">Actualizar estado</button></form>` : ""}</div>` : ""}${u?.role === "editor" && w.status !== "withdrawn" ? `<details class="panel"><summary>Actuación editorial</summary><form id="withdraw-form" data-id="${id}">${area("note", "Motivo del retiro", "", "El motivo quedará visible en la ficha.", 3)}<button class="button danger small">Retirar publicación</button></form></details>` : ""}</aside></div></div>`,
       u,
       path,
       meta,
@@ -491,7 +538,7 @@ export async function render(
     ],
     "/privacy": [
       "Privacidad y control de tus datos.",
-      `<p>Versión del 6 de noviembre de 2026. Esta implementación recoge nombre público, usuario, contraseña cifrada mediante derivación criptográfica, sesiones y contenido que decides aportar. No solicita correo electrónico ni perfil institucional.</p><h2>Qué es público</h2><p>Nombre de autor, usuario, contribuciones publicadas, relaciones entre trabajos y propuestas de colaboración. Los borradores son accesibles a su titular y a la cuenta editorial para gestionar el servicio. No publiques datos privados en una propuesta de colaboración.</p><h2>Lista de lectura</h2><p>Si guardas una publicación, su título, autor y enlace se conservan en el almacenamiento local de este navegador. La lista no se sincroniza con tu cuenta ni se envía al servidor. Puedes quitar cada entrada desde la lista de lectura o borrar los datos locales del sitio.</p><h2>Infraestructura</h2><p>Cloudflare aloja la aplicación, los registros estructurados y las copias de versiones. Las sesiones usan cookies necesarias, HttpOnly y de duración limitada. El servicio usa la dirección de red para límites temporales; las claves del limitador se guardan como hashes. Los registros técnicos de infraestructura pueden incluir datos de conexión.</p><h2>Evaluaciones de IA</h2><p>Se requiere autorización expresa en el manuscrito antes de enviar su contenido a OpenAI o Anthropic. Solo se envía al solicitar una evaluación. El proveedor procesa el texto según sus condiciones. No incluyas información confidencial. No se reutilizan claves privadas de otros proyectos para estas evaluaciones.</p><h2>Conservación y solicitudes</h2><p>Los borradores se conservan en la cuenta. Las versiones públicas mantienen un historial para preservar citas y atribución; un retiro conserva su ficha. Puedes cambiar tu contraseña y cerrar sesión desde tu cuenta. Para solicitudes privadas de acceso, corrección o eliminación, contacta directamente a la persona administradora por el canal de invitación. El lanzamiento general requiere definir y publicar la identidad formal del responsable y su canal de atención.</p>`,
+      `<p>Versión del 6 de noviembre de 2026. Esta implementación recoge nombre público, usuario, contraseña cifrada mediante derivación criptográfica, sesiones y contenido que decides aportar. No solicita correo electrónico ni perfil institucional.</p><h2>Qué es público</h2><p>Nombre de autor, usuario, contribuciones publicadas, relaciones entre trabajos y propuestas de colaboración. Los borradores son accesibles a su titular y a la cuenta editorial para gestionar el servicio. No publiques datos privados en una propuesta de colaboración.</p><h2>Lista de lectura</h2><p>Si guardas una publicación, su título, autor y enlace se conservan en el almacenamiento local de este navegador. La lista no se sincroniza con tu cuenta ni se envía al servidor. Puedes quitar cada entrada desde la lista de lectura o borrar los datos locales del sitio.</p><h2>Infraestructura</h2><p>Cloudflare aloja la aplicación, los registros estructurados y las copias de versiones. Las sesiones usan cookies necesarias, HttpOnly y de duración limitada. El servicio usa la dirección de red para límites temporales; las claves del limitador se guardan como hashes. Los registros técnicos de infraestructura pueden incluir datos de conexión.</p><h2>Materiales e idiomas</h2><p>Las traducciones de lectura procesan únicamente textos ya publicados mediante Cloudflare Workers AI. Se conservan por versión e idioma; pueden contener errores. Los adjuntos del borrador permanecen privados hasta su publicación. Al quitar un archivo de una nueva versión, se conserva el acceso desde las versiones ya publicadas.</p><h2>Evaluaciones de IA</h2><p>Se requiere autorización expresa en el manuscrito antes de enviar su contenido a OpenAI o Anthropic. Solo se envía al solicitar una evaluación. El proveedor procesa el texto según sus condiciones. No incluyas información confidencial. No se reutilizan claves privadas de otros proyectos para estas evaluaciones.</p><h2>Conservación y solicitudes</h2><p>Los borradores se conservan en la cuenta. Las versiones públicas mantienen un historial para preservar citas y atribución; un retiro conserva su ficha. Puedes cambiar tu contraseña y cerrar sesión desde tu cuenta. Para solicitudes privadas de acceso, corrección o eliminación, contacta directamente a la persona administradora por el canal de invitación. El lanzamiento general requiere definir y publicar la identidad formal del responsable y su canal de atención.</p>`,
     ],
   };
   if (pages[path])

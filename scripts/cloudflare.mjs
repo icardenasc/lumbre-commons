@@ -55,11 +55,14 @@ if (process.argv[2] === "provision") {
     r2_buckets: [
       { binding: "ARTIFACTS", bucket_name: "lumbre-commons-artifacts" },
     ],
+    ai: { binding: "AI", remote: true },
+    triggers: { crons: ["* * * * *"] },
     vars: {
       APP_URL: "https://lumbre-commons.ia-cardenas10.workers.dev",
       OPENAI_MODEL: "gpt-6-astra",
       ANTHROPIC_MODEL: "claude-opus-5-5",
       AI_ENABLED: "false",
+      TRANSLATION_ENABLED: "true",
     },
     observability: { enabled: true },
     limits: { cpu_ms: 30000 },
